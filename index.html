@@ -637,10 +637,16 @@
         ];
 
         async function runBootSequence() {
+            // Attempt to initialize audio context
+            SoundSys.init();
+
             // Wait a moment for effect
             await new Promise(r => setTimeout(r, 800));
             
             for (const line of bootText) {
+                // Play text sound
+                SoundSys.click();
+                
                 addMessage(null, line, true); 
                 // Random typing delay
                 await new Promise(r => setTimeout(r, 100 + Math.random() * 250));
@@ -843,13 +849,13 @@
             if (isBurn) {
                 const burnSpan = document.createElement('span');
                 burnSpan.className = 'burn-timer';
-                burnSpan.textContent = ' [🔥 10s]';
+                burnSpan.textContent = ' [10s]';
                 msgDiv.appendChild(burnSpan);
 
                 let left = 10;
                 const timer = setInterval(() => {
                     left--;
-                    if(left >= 0) burnSpan.textContent = ` [🔥 ${left}s]`;
+                    if(left >= 0) burnSpan.textContent = ` [${left}s]`;
                     else {
                         clearInterval(timer);
                     }
