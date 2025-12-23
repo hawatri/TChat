@@ -9,13 +9,16 @@
     <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
     <style>
         :root {
-            --terminal-green: #33ff00;
+            /* Default Theme: Green Phosphor */
+            --terminal-main: #33ff00;
             --terminal-glow: #33ff00;
             --terminal-bg: #0a0a0a;
             --bezel-color: #222;
-            --system-amber: #ffaa00;
-            --chat-blue: #00ccff;
-            --error-red: #ff3333;
+            
+            /* Secondary colors (will be overridden by monochrome themes) */
+            --system-color: #ffaa00; 
+            --chat-color: #00ccff;
+            --error-color: #ff3333;
         }
 
         body {
@@ -80,7 +83,7 @@
             width: 100%;
             padding: 40px;
             box-sizing: border-box;
-            color: var(--terminal-green);
+            color: var(--terminal-main);
             text-shadow: 0 0 4px var(--terminal-glow);
             font-size: 1.5rem;
             display: flex;
@@ -89,12 +92,12 @@
             z-index: 1;
             overflow-y: auto;
             scrollbar-width: thin;
-            scrollbar-color: var(--terminal-green) transparent;
+            scrollbar-color: var(--terminal-main) transparent;
         }
 
         .terminal-content::-webkit-scrollbar { width: 10px; }
         .terminal-content::-webkit-scrollbar-track { background: #000; }
-        .terminal-content::-webkit-scrollbar-thumb { background-color: var(--terminal-green); border: 2px solid #000; }
+        .terminal-content::-webkit-scrollbar-thumb { background-color: var(--terminal-main); border: 2px solid #000; }
 
         #chat-history {
             flex-grow: 1;
@@ -113,9 +116,9 @@
             max-width: 90%;
         }
 
-        .system-msg { color: var(--system-amber); text-shadow: 0 0 4px var(--system-amber); }
-        .chat-msg { color: var(--chat-blue); text-shadow: 0 0 4px var(--chat-blue); }
-        .error-msg { color: var(--error-red); text-shadow: 0 0 4px var(--error-red); }
+        .system-msg { color: var(--system-color); text-shadow: 0 0 4px var(--system-color); }
+        .chat-msg { color: var(--chat-color); text-shadow: 0 0 4px var(--chat-color); }
+        .error-msg { color: var(--error-color); text-shadow: 0 0 4px var(--error-color); }
         .user-prefix { font-weight: bold; margin-right: 0.5rem; }
 
         .input-line {
@@ -132,13 +135,13 @@
         #command-input {
             background: transparent;
             border: none;
-            color: var(--terminal-green);
+            color: var(--terminal-main);
             font-family: 'VT323', monospace;
             font-size: 1.5rem;
             flex-grow: 1;
             outline: none;
             text-shadow: 0 0 4px var(--terminal-glow);
-            caret-color: var(--terminal-green); 
+            caret-color: var(--terminal-main); 
         }
 
         @keyframes flicker {
@@ -204,10 +207,8 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // Ensure persistence is set to LOCAL so refreshing doesn't kill the session
-        setPersistence(auth, browserLocalPersistence).catch(error => {
-            console.error("Persistence error:", error);
-        });
+        // Ensure persistence is set to LOCAL
+        setPersistence(auth, browserLocalPersistence).catch(console.error);
 
         // --- State ---
         let currentUser = null;
@@ -215,7 +216,64 @@
         let messagesUnsubscribe = null;
         const state = {
             mode: 'COMMAND', 
+            muted: false
         };
+
+        // --- Sound System (Web Audio API) ---
+        const SoundSys = {
+            ctx: null,
+            init: function() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+            playTone: function(freq, type, duration, vol=0.1) {
+                if (state.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
+            },
+            click: function() {
+                // Short, sharp click for typing
+                this.playTone(800, 'square', 0.05, 0.05);
+            },
+            blip: function() {
+                // High pitch blip for messages
+                this.playTone(1200, 'sine', 0.15, 0.1);
+            }
+        };
+
+        // --- Theme System ---
+        const Themes = {
+            green: { main: '#33ff00', system: '#ffaa00', chat: '#00ccff', error: '#ff3333' },
+            amber: { main: '#ffb000', system: '#ffcc00', chat: '#ffb000', error: '#ff5500' }, // Monochrome feel
+            blue:  { main: '#0088ff', system: '#00aaff', chat: '#00ffff', error: '#ff3333' },
+            white: { main: '#e0e0e0', system: '#ffffff', chat: '#cccccc', error: '#ff3333' },
+            matrix: { main: '#00ff41', system: '#008f11', chat: '#003b00', error: '#ff3333' }
+        };
+
+        function applyTheme(themeName) {
+            const theme = Themes[themeName];
+            if (!theme) return false;
+            
+            const r = document.documentElement;
+            r.style.setProperty('--terminal-main', theme.main);
+            r.style.setProperty('--terminal-glow', theme.main);
+            r.style.setProperty('--system-color', theme.system);
+            r.style.setProperty('--chat-color', theme.chat);
+            r.style.setProperty('--error-color', theme.error);
+            return true;
+        }
 
         // --- UI References ---
         const input = document.getElementById('command-input');
@@ -224,30 +282,21 @@
         const promptSpan = document.getElementById('prompt-span');
 
         // --- Auth Logic ---
-        
-        // This function is only called if NO user is found after initial check
         const initGuestAuth = async () => {
-            try {
-                await signInAnonymously(auth);
-            } catch (error) {
-                console.warn("Guest login failed:", error.code);
-                addMessage('SYSTEM', 'GUEST LOGIN FAILED. TYPE "login" TO USE GOOGLE.', true);
-            }
+            try { await signInAnonymously(auth); } 
+            catch (e) { console.warn("Guest login failed:", e.code); }
         };
 
-        // We use onAuthStateChanged as the SOURCE OF TRUTH.
-        // It fires automatically on page load once Firebase restores the session (or confirms there isn't one).
         onAuthStateChanged(auth, async (user) => {
             currentUser = user;
             if (user) {
-                // User is logged in (either Google or Guest)
                 if (user.isAnonymous) {
                      updatePrompt('guest');
-                     addMessage('SYSTEM', 'GUEST MODE ACTIVE. SOME FEATURES LIMITED.', true);
+                     addMessage('SYSTEM', 'GUEST MODE ACTIVE.', true);
                 } else {
                     updatePrompt(user.email.split('@')[0]);
                     addMessage('SYSTEM', `AUTHENTICATED AS ${user.email}`, true);
-                    
+                    // Save profile logic...
                     try {
                         const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', user.uid);
                         await setDoc(userRef, {
@@ -256,14 +305,10 @@
                             uid: user.uid,
                             lastSeen: serverTimestamp()
                         }, { merge: true });
-                    } catch (e) {
-                        console.error("Profile save failed", e);
-                    }
+                    } catch (e) {}
                 }
             } else {
-                // User is definitely NOT logged in.
                 updatePrompt('offline');
-                // Auto-login as guest if no session exists
                 initGuestAuth();
             }
         });
@@ -274,9 +319,8 @@
                 const provider = new GoogleAuthProvider();
                 await signInWithPopup(auth, provider);
             } catch (error) {
-                console.error(error);
                 if (error.code === 'auth/unauthorized-domain') {
-                    addMessage('ERROR', 'DOMAIN NOT AUTHORIZED. Add this URL to Firebase Console > Auth > Settings.', false, false, true);
+                    addMessage('ERROR', 'DOMAIN NOT AUTHORIZED. Check Firebase Console.', false, false, true);
                 } else {
                     addMessage('ERROR', `LOGIN FAILED: ${error.message}`, false, false, true);
                 }
@@ -287,10 +331,10 @@
         function updatePrompt(username) {
             if (state.mode === 'CHAT') {
                 promptSpan.textContent = `[CHAT:${currentChatPartner.email}] >`;
-                input.style.caretColor = 'var(--chat-blue)';
+                input.style.caretColor = 'var(--chat-color)';
             } else {
                 promptSpan.textContent = `${username}@TChat:~$`;
-                input.style.caretColor = 'var(--terminal-green)';
+                input.style.caretColor = 'var(--terminal-main)';
             }
         }
 
@@ -301,11 +345,17 @@
             if (isChat) msgDiv.classList.add('chat-msg');
             if (isError) msgDiv.classList.add('error-msg');
 
+            // Sound Logic: Play blip for system messages or chat from others
+            // Delay slightly to ensure AudioContext is ready
+            if (!state.muted && (isSystem || (isChat && sender !== 'ME'))) {
+                setTimeout(() => SoundSys.blip(), 50);
+            }
+
             if (sender) {
-                let prefixColor = 'var(--terminal-green)';
-                if (isChat) prefixColor = 'var(--chat-blue)';
-                if (isSystem) prefixColor = 'var(--system-amber)';
-                if (isError) prefixColor = 'var(--error-red)';
+                let prefixColor = 'var(--terminal-main)';
+                if (isChat) prefixColor = 'var(--chat-color)';
+                if (isSystem) prefixColor = 'var(--system-color)';
+                if (isError) prefixColor = 'var(--error-color)';
 
                 msgDiv.innerHTML = `<span class="user-prefix" style="color:${prefixColor}">[${sender}]:</span> ${escapeHtml(text)}`;
             } else {
@@ -321,16 +371,19 @@
         }
 
         function escapeHtml(text) {
-            return text
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         }
 
         // --- Command Processing ---
         input.addEventListener('keydown', function(event) {
+            // Initialize AudioContext on first user interaction
+            SoundSys.init();
+            
+            // Play typing sound on every key press (except Enter/modifiers to avoid spam)
+            if (!['Enter', 'Shift', 'Control', 'Alt'].includes(event.key)) {
+                SoundSys.click();
+            }
+
             if (event.key === 'Enter') {
                 const text = input.value.trim();
                 if (text !== "") {
@@ -345,7 +398,7 @@
             }
         });
 
-        document.addEventListener('click', () => input.focus());
+        document.addEventListener('click', () => { input.focus(); SoundSys.init(); });
         window.onload = () => input.focus();
 
         async function processCommand(rawCmd) {
@@ -356,16 +409,41 @@
             switch (cmd) {
                 case 'help':
                     addMessage('SYSTEM', 'COMMANDS:', true);
-                    addMessage(null, '  login           - Sign in with Google');
-                    addMessage(null, '  friend add [email] - Add a friend by email');
-                    addMessage(null, '  friends         - List your friends');
-                    addMessage(null, '  chat [email]    - Start chat with friend');
-                    addMessage(null, '  clear           - Clear screen');
-                    addMessage(null, '  date            - Show server time');
+                    addMessage(null, '  login            - Sign in with Google');
+                    addMessage(null, '  friend add [email] - Add a friend');
+                    addMessage(null, '  friends          - List friends');
+                    addMessage(null, '  chat [email]     - Start chat');
+                    addMessage(null, '  theme [color]    - green/amber/blue/white/matrix');
+                    addMessage(null, '  mute / unmute    - Toggle sounds');
+                    addMessage(null, '  clear            - Clear screen');
                     break;
 
                 case 'clear':
                     history.innerHTML = '';
+                    break;
+
+                case 'mute':
+                    state.muted = true;
+                    addMessage('SYSTEM', 'SOUNDS MUTED.', true);
+                    break;
+
+                case 'unmute':
+                    state.muted = false;
+                    SoundSys.init();
+                    SoundSys.blip(); // Confirmation sound
+                    addMessage('SYSTEM', 'SOUNDS ACTIVE.', true);
+                    break;
+
+                case 'theme':
+                    if (args[0]) {
+                        if (applyTheme(args[0])) {
+                            addMessage('SYSTEM', `THEME SET TO ${args[0].toUpperCase()}`, true);
+                        } else {
+                            addMessage('ERROR', 'UNKNOWN THEME. TRY: green, amber, blue, white, matrix', false, false, true);
+                        }
+                    } else {
+                        addMessage('SYSTEM', 'USAGE: theme [green|amber|blue|white|matrix]', true);
+                    }
                     break;
 
                 case 'login':
@@ -429,9 +507,7 @@
                     addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
                     return;
                 }
-
                 const targetUser = snapshot.docs[0].data();
-
                 const myFriendsRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'friends', targetUser.uid);
                 await setDoc(myFriendsRef, {
                     email: targetUser.email,
@@ -439,11 +515,8 @@
                     displayName: targetUser.displayName,
                     addedAt: serverTimestamp()
                 });
-
                 addMessage('SYSTEM', `USER ${targetUser.email} ADDED TO FRIENDS.`, true);
-
             } catch (error) {
-                console.error(error);
                 addMessage('ERROR', 'DB ERROR: ' + error.message, false, false, true);
             }
         }
@@ -453,17 +526,14 @@
             try {
                 const friendsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'friends');
                 const snapshot = await getDocs(friendsRef);
-
                 if (snapshot.empty) {
                     addMessage(null, 'No friends found. Use "friend add [email]"');
                     return;
                 }
-
                 snapshot.forEach(doc => {
                     const friend = doc.data();
                     addMessage(null, `> ${friend.email}`);
                 });
-
             } catch (error) {
                 addMessage('ERROR', error.message, false, false, true);
             }
@@ -492,17 +562,14 @@
                 const convoId = getConversationId(currentUser.uid, friendData.uid);
                 const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
                 
-                const qMsg = query(
-                    msgsRef, 
-                    where('conversationId', '==', convoId),
-                    orderBy('timestamp', 'asc')
-                );
+                const qMsg = query(msgsRef, where('conversationId', '==', convoId), orderBy('timestamp', 'asc'));
+
+                if (messagesUnsubscribe) messagesUnsubscribe();
 
                 messagesUnsubscribe = onSnapshot(qMsg, (snapshot) => {
                     snapshot.docChanges().forEach((change) => {
                         if (change.type === "added") {
                             const msg = change.doc.data();
-                            
                             const senderName = msg.senderId === currentUser.uid ? 'ME' : friendData.email.split('@')[0];
                             addMessage(senderName, msg.text, false, true);
                         }
@@ -515,7 +582,6 @@
                          console.error("Chat Error", error);
                      }
                 });
-
             } catch (error) {
                 addMessage('ERROR', 'CHAT INIT FAILED: ' + error.message, false, false, true);
             }
