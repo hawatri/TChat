@@ -337,7 +337,7 @@
 
         // --- Autocomplete Data ---
         const commandsList = [
-            'help', 'login', 'friend', 'friends', 'friends-email', 'chat', 'inbox',
+            'help', 'login', 'friend', 'friends', 'friends-email', 'chat', 'reqbox',
             'burn', 'theme', 'ascii', 'mute', 'unmute', 
             'clear', 'status', 'date', 'exit', 'emoji'
         ];
@@ -560,16 +560,11 @@
 
         function confirmSelection(selectedValue) {
             const val = input.value;
-            // Find the last word being typed (split by space)
-            // Note: In this simple terminal, we assume cursor is at end for this logic
-            // or at least we are completing the last token.
             const lastSpaceIdx = val.lastIndexOf(' ');
             
             if (lastSpaceIdx === -1) {
-                // Replacing the first/only word
                 input.value = selectedValue + ' ';
             } else {
-                // Replacing the last word, preserving prefix
                 const prefix = val.substring(0, lastSpaceIdx + 1);
                 input.value = prefix + selectedValue + ' ';
             }
@@ -582,30 +577,25 @@
         function handleTabCompletion(e) {
             e.preventDefault();
 
-            // If menu is open, cycle through it
             if (autocompleteMenu.style.display === 'flex') {
                 autocompleteIndex = (autocompleteIndex + 1) % autocompleteOptions.length;
                 highlightOption(autocompleteIndex);
                 return;
             }
 
-            // Logic to find matches
             const val = input.value;
-            const parts = val.split(' '); // Simple tokenize by space
-            const currentWord = parts[parts.length - 1]; // Word currently being typed
+            const parts = val.split(' '); 
+            const currentWord = parts[parts.length - 1]; 
             
             let matches = [];
 
-            // 1. Emoji Autocomplete (Priority if starts with '(')
             if (currentWord.startsWith('(')) {
                 const emojiKeys = Object.keys(EMOJI_MAP);
                 matches = emojiKeys.filter(key => key.startsWith(currentWord));
             }
-            // 2. Command Autocomplete (1st word only)
             else if (parts.length === 1 && currentWord !== "") {
                  matches = commandsList.filter(cmd => cmd.startsWith(currentWord));
             }
-            // 3. Subcommand Autocomplete (2nd word only)
             else if (parts.length === 2 && !currentWord.startsWith('(')) {
                 const cmd = parts[0];
                 if (subCommands[cmd]) {
@@ -614,10 +604,8 @@
             }
 
             if (matches.length === 1) {
-                // Exact match, just fill it
                 confirmSelection(matches[0]);
             } else if (matches.length > 1) {
-                // Multiple matches, show menu
                 showAutocompleteMenu(matches);
             }
         }
@@ -913,7 +901,7 @@
                     addMessage(null, '  friend nick [email] [nick] - Set nickname');
                     addMessage(null, '  friends          - List friends');
                     addMessage(null, '  friends-email    - List emails & nicknames');
-                    addMessage(null, '  inbox            - Check for new messages');
+                    addMessage(null, '  reqbox           - Check for new messages');
                     addMessage(null, '  status [mode]    - online/away/busy');
                     addMessage(null, '  chat [name/email] - Start chat');
                     addMessage(null, '  burn [msg]       - Send self-destruct msg');
@@ -1018,9 +1006,9 @@
                     listFriendsEmails();
                     break;
 
-                case 'inbox':
+                case 'reqbox':
                     if (!ensureAuth()) return;
-                    checkInbox();
+                    checkReqBox();
                     break;
 
                 case 'chat':
@@ -1165,12 +1153,20 @@
             }
         }
 
-        async function checkInbox() {
-            addMessage('SYSTEM', 'SCANNING FREQUENCIES (INBOX)...', true);
+        async function checkReqBox() {
+            addMessage('SYSTEM', 'SCANNING FREQUENCIES (REQBOX)...', true);
             try {
-                // Warning: This scans all messages sent to user. In a real app, optimize this.
+                // 1. Fetch my friend list to build a lookup set
+                const friendsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'friends');
+                const friendsSnap = await getDocs(friendsRef);
+                const friendMap = new Map(); // uid -> { nickname, email }
+                friendsSnap.forEach(doc => {
+                    const data = doc.data();
+                    friendMap.set(data.uid, data);
+                });
+
+                // 2. Fetch messages sent to me
                 const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
-                // We rely on 'receiverId' index if needed, but for small scale this works.
                 const q = query(msgsRef, where('receiverId', '==', currentUser.uid));
                 const snapshot = await getDocs(q);
 
@@ -1179,7 +1175,7 @@
                     return;
                 }
 
-                // Aggregate unique senders
+                // 3. Aggregate unique senders
                 const senders = new Set();
                 snapshot.forEach(doc => {
                     senders.add(doc.data().senderId);
@@ -1192,19 +1188,27 @@
 
                 addMessage(null, `FOUND MESSAGES FROM ${senders.size} USER(S):`);
 
-                // Fetch details for each sender
+                // 4. List each sender, marking friends
                 for (const uid of senders) {
-                    const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', uid);
-                    const snap = await getDoc(profileRef);
-                    if (snap.exists()) {
-                        const data = snap.data();
-                        addMessage(null, `> ${data.email} [${uid.slice(0,5)}..]`);
+                    // Check if friend
+                    if (friendMap.has(uid)) {
+                        const friend = friendMap.get(uid);
+                        const displayName = friend.nickname ? `${friend.nickname} <${friend.email}>` : friend.email;
+                        addMessage(null, `> [FRIEND] ${displayName}`);
                     } else {
-                        addMessage(null, `> UNKNOWN_USER [${uid}]`);
+                        // Stranger - fetch profile for email
+                        const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', uid);
+                        const snap = await getDoc(profileRef);
+                        if (snap.exists()) {
+                            const data = snap.data();
+                            addMessage(null, `> [NEW]    ${data.email}`);
+                        } else {
+                            addMessage(null, `> [NEW]    UNKNOWN_USER [${uid.slice(0,5)}..]`);
+                        }
                     }
                 }
                 
-                addMessage('SYSTEM', "TYPE 'chat [email]' TO REPLY.", true);
+                addMessage('SYSTEM', "TYPE 'chat [email/nick]' TO REPLY.", true);
 
             } catch (error) {
                 console.error(error);
