@@ -128,25 +128,78 @@
             padding-top: 15px;
             padding-bottom: 5px;
             background-color: rgba(0,0,0,0.5);
+            position: relative;
         }
 
         .prompt { margin-right: 15px; font-weight: bold; }
 
+        /* Custom Input Wrapper */
+        .cmd-wrapper {
+            position: relative;
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            height: 1.5rem;
+        }
+
+        /* The real input is hidden but captures events */
         #command-input {
-            background: transparent;
-            border: none;
-            color: var(--terminal-main);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            z-index: 10;
+            cursor: default;
             font-family: 'VT323', monospace;
             font-size: 1.5rem;
-            flex-grow: 1;
+            border: none;
             outline: none;
+            background: transparent;
+            color: transparent;
+        }
+
+        /* The visual text display */
+        #cmd-display {
+            font-family: 'VT323', monospace;
+            font-size: 1.5rem;
+            color: var(--terminal-main);
             text-shadow: 0 0 4px var(--terminal-glow);
-            caret-color: var(--terminal-main); 
+            white-space: pre;
+            pointer-events: none;
+            display: flex;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        /* The Block Cursor */
+        #cmd-cursor {
+            background-color: var(--terminal-main);
+            color: var(--terminal-bg); /* Inverse text color inside cursor */
+            animation: blink 1s step-end infinite;
+            min-width: 1ch; /* Exactly one character width */
+            display: inline-block;
+            text-align: center;
+        }
+
+        /* Stop blinking when focus lost */
+        .input-line:not(:focus-within) #cmd-cursor {
+            background-color: transparent;
+            color: var(--terminal-main);
+            border: 1px solid var(--terminal-main); /* Hollow box */
+            animation: none;
         }
 
         @keyframes flicker {
             0% { opacity: 0.97; } 50% { opacity: 0.99; } 100% { opacity: 0.94; }
         }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
         @keyframes fadeIn { to { opacity: 1; } }
 
         .power-led {
@@ -180,7 +233,12 @@
 
             <div class="input-line">
                 <span class="prompt" id="prompt-span">...</span>
-                <input type="text" id="command-input" autocomplete="off" autofocus>
+                <div class="cmd-wrapper">
+                    <input type="text" id="command-input" autocomplete="off" autofocus>
+                    <div id="cmd-display">
+                        <span id="cmd-before"></span><span id="cmd-cursor">&nbsp;</span><span id="cmd-after"></span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -207,7 +265,6 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // Ensure persistence is set to LOCAL
         setPersistence(auth, browserLocalPersistence).catch(console.error);
 
         // --- State ---
@@ -219,7 +276,7 @@
             muted: false
         };
 
-        // --- Sound System (Web Audio API) ---
+        // --- Sound System ---
         const SoundSys = {
             ctx: null,
             init: function() {
@@ -244,11 +301,9 @@
                 osc.stop(this.ctx.currentTime + duration);
             },
             click: function() {
-                // Short, sharp click for typing
                 this.playTone(800, 'square', 0.05, 0.05);
             },
             blip: function() {
-                // High pitch blip for messages
                 this.playTone(1200, 'sine', 0.15, 0.1);
             }
         };
@@ -256,7 +311,7 @@
         // --- Theme System ---
         const Themes = {
             green: { main: '#33ff00', system: '#ffaa00', chat: '#00ccff', error: '#ff3333' },
-            amber: { main: '#ffb000', system: '#ffcc00', chat: '#ffb000', error: '#ff5500' }, // Monochrome feel
+            amber: { main: '#ffb000', system: '#ffcc00', chat: '#ffb000', error: '#ff5500' },
             blue:  { main: '#0088ff', system: '#00aaff', chat: '#00ffff', error: '#ff3333' },
             white: { main: '#e0e0e0', system: '#ffffff', chat: '#cccccc', error: '#ff3333' },
             matrix: { main: '#00ff41', system: '#008f11', chat: '#003b00', error: '#ff3333' }
@@ -265,7 +320,6 @@
         function applyTheme(themeName) {
             const theme = Themes[themeName];
             if (!theme) return false;
-            
             const r = document.documentElement;
             r.style.setProperty('--terminal-main', theme.main);
             r.style.setProperty('--terminal-glow', theme.main);
@@ -280,6 +334,31 @@
         const history = document.getElementById('chat-history');
         const container = document.getElementById('terminal-container');
         const promptSpan = document.getElementById('prompt-span');
+        
+        // Custom Cursor References
+        const cmdBefore = document.getElementById('cmd-before');
+        const cmdCursor = document.getElementById('cmd-cursor');
+        const cmdAfter = document.getElementById('cmd-after');
+
+        function updateInputDisplay() {
+            const val = input.value;
+            const selStart = input.selectionStart || 0;
+            
+            const left = val.substring(0, selStart);
+            const char = val.substring(selStart, selStart + 1) || '\u00A0'; // nbsp if at end
+            const right = val.substring(selStart + 1);
+
+            cmdBefore.textContent = left;
+            cmdCursor.textContent = char;
+            cmdAfter.textContent = right;
+        }
+
+        // Attach listeners for visual sync
+        ['input', 'keydown', 'keyup', 'click', 'focus', 'blur'].forEach(evt => {
+            input.addEventListener(evt, () => {
+                requestAnimationFrame(updateInputDisplay);
+            });
+        });
 
         // --- Auth Logic ---
         const initGuestAuth = async () => {
@@ -296,7 +375,6 @@
                 } else {
                     updatePrompt(user.email.split('@')[0]);
                     addMessage('SYSTEM', `AUTHENTICATED AS ${user.email}`, true);
-                    // Save profile logic...
                     try {
                         const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', user.uid);
                         await setDoc(userRef, {
@@ -331,10 +409,9 @@
         function updatePrompt(username) {
             if (state.mode === 'CHAT') {
                 promptSpan.textContent = `[CHAT:${currentChatPartner.email}] >`;
-                input.style.caretColor = 'var(--chat-color)';
+                // Logic to change cursor color if needed, but CSS handles it via variables
             } else {
                 promptSpan.textContent = `${username}@TChat:~$`;
-                input.style.caretColor = 'var(--terminal-main)';
             }
         }
 
@@ -345,8 +422,6 @@
             if (isChat) msgDiv.classList.add('chat-msg');
             if (isError) msgDiv.classList.add('error-msg');
 
-            // Sound Logic: Play blip for system messages or chat from others
-            // Delay slightly to ensure AudioContext is ready
             if (!state.muted && (isSystem || (isChat && sender !== 'ME'))) {
                 setTimeout(() => SoundSys.blip(), 50);
             }
@@ -376,10 +451,7 @@
 
         // --- Command Processing ---
         input.addEventListener('keydown', function(event) {
-            // Initialize AudioContext on first user interaction
             SoundSys.init();
-            
-            // Play typing sound on every key press (except Enter/modifiers to avoid spam)
             if (!['Enter', 'Shift', 'Control', 'Alt'].includes(event.key)) {
                 SoundSys.click();
             }
@@ -394,6 +466,7 @@
                         processChatInput(text);
                     }
                     input.value = '';
+                    updateInputDisplay();
                 }
             }
         });
@@ -430,7 +503,7 @@
                 case 'unmute':
                     state.muted = false;
                     SoundSys.init();
-                    SoundSys.blip(); // Confirmation sound
+                    SoundSys.blip(); 
                     addMessage('SYSTEM', 'SOUNDS ACTIVE.', true);
                     break;
 
@@ -576,7 +649,7 @@
                     });
                 }, (error) => {
                      if(error.message.includes("index")) {
-                         addMessage('ERROR', 'INDEX REQUIRED. Check browser console for creation link.', false, false, true);
+                         addMessage('ERROR', 'INDEX REQUIRED. Check browser console.', false, false, true);
                          console.error(error);
                      } else {
                          console.error("Chat Error", error);
