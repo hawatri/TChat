@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>T-CHAT_LINK_V2.0</title>
     <link rel="icon" type="image/png" href="tchat.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -28,6 +28,8 @@
             padding: 0;
             background-color: var(--terminal-bg);
             height: 100vh;
+            /* Mobile: Fix height issues with address bar */
+            height: 100dvh; 
             width: 100vw;
             font-family: 'VT323', monospace;
             overflow: hidden;
@@ -268,6 +270,63 @@
             color: #333; font-size: 1rem; font-family: sans-serif; letter-spacing: 4px;
             font-weight: bold; z-index: 25; pointer-events: none;
             text-shadow: 0 1px 1px rgba(255,255,255,0.1);
+        }
+
+        /* --- MOBILE RESPONSIVENESS --- */
+        @media (max-width: 768px) {
+            /* Reduce bezel size to save space */
+            .bezel-overlay {
+                border-width: 10px;
+                border-radius: 12px;
+            }
+            
+            /* Maximize content area */
+            .terminal-content {
+                padding: 15px; 
+                padding-bottom: 20px;
+                font-size: 1.2rem;
+            }
+
+            /* Adjust input area for touch */
+            .input-line {
+                padding-top: 10px;
+            }
+            
+            .prompt {
+                margin-right: 5px;
+            }
+
+            #command-input, #cmd-display {
+                font-size: 1.2rem;
+            }
+
+            /* Move decorations out of the way */
+            .brand-logo {
+                font-size: 0.7rem;
+                bottom: 2px;
+                letter-spacing: 1px;
+                opacity: 0.5; /* Fade it out slightly */
+            }
+
+            .power-led {
+                width: 6px;
+                height: 6px;
+                bottom: 10px;
+                right: 10px;
+            }
+
+            /* Adjust autocomplete for smaller screens */
+            #autocomplete-menu {
+                max-height: 180px;
+                min-width: 150px;
+                bottom: 100%;
+                left: 0;
+            }
+            
+            .suggestion-item {
+                font-size: 1.2rem;
+                padding: 8px; /* Tappable area */
+            }
         }
     </style>
 </head>
@@ -775,14 +834,14 @@
             if (isBurn) {
                 const burnSpan = document.createElement('span');
                 burnSpan.className = 'burn-timer';
-                burnSpan.textContent = ' [10s]';
+                burnSpan.textContent = ' [🔥 10s]';
                 msgDiv.appendChild(burnSpan);
 
                 // Local countdown visual (actual deletion handled by DB listener or sender)
                 let left = 10;
                 const timer = setInterval(() => {
                     left--;
-                    if(left >= 0) burnSpan.textContent = ` [${left}s]`;
+                    if(left >= 0) burnSpan.textContent = ` [🔥 ${left}s]`;
                     else {
                         clearInterval(timer);
                     }
