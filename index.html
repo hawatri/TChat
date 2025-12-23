@@ -345,7 +345,7 @@
         const subCommands = {
             'theme': ['green', 'amber', 'blue', 'white', 'matrix'],
             'status': ['online', 'away', 'busy'],
-            'friend': ['add']
+            'friend': ['add', 'nick']
         };
 
         let autocompleteOptions = [];
@@ -589,7 +589,7 @@
 
         function updatePrompt(username) {
             if (state.mode === 'CHAT') {
-                promptSpan.textContent = `[CHAT:${currentChatPartner.email}] >`;
+                promptSpan.textContent = `[CHAT:${currentChatPartner.nickname || currentChatPartner.email}] >`;
             } else {
                 promptSpan.textContent = `${username}@TChat:~$`;
             }
@@ -756,8 +756,6 @@
             }
 
             // --- Hiding menu on typing (reset) ---
-            // If user types normal keys, we might want to hide menu or refine search?
-            // For simple retro style, let's hide menu if they type non-nav keys so they can re-tab
             if (event.key.length === 1 || event.key === 'Backspace') {
                  if (event.key !== 'Tab') hideAutocomplete();
             }
@@ -790,7 +788,6 @@
         document.addEventListener('click', (e) => { 
             input.focus(); 
             SoundSys.init();
-            // Close autocomplete if clicking outside
             if (e.target !== autocompleteMenu && e.target.parentElement !== autocompleteMenu) {
                 hideAutocomplete();
             }
@@ -806,10 +803,11 @@
                 case 'help':
                     addMessage('SYSTEM', 'COMMANDS:', true);
                     addMessage(null, '  login            - Sign in with Google');
-                    addMessage(null, '  friend add [email] - Add a friend');
-                    addMessage(null, '  friends          - List friends & status');
+                    addMessage(null, '  friend add [email]     - Add friend');
+                    addMessage(null, '  friend nick [email] [nick] - Set nickname');
+                    addMessage(null, '  friends          - List friends');
                     addMessage(null, '  status [mode]    - online/away/busy');
-                    addMessage(null, '  chat [email]     - Start chat');
+                    addMessage(null, '  chat [name/email] - Start chat');
                     addMessage(null, '  burn [msg]       - Send self-destruct msg');
                     addMessage(null, '  theme [color]    - Set color');
                     addMessage(null, '  ascii [url]      - Render ASCII');
@@ -888,8 +886,10 @@
                     if (!ensureAuth()) return;
                     if (args[0] === 'add' && args[1]) {
                         addFriend(args[1]);
+                    } else if (args[0] === 'nick' && args[1] && args[2]) {
+                        setNickname(args[1], args[2]);
                     } else {
-                        addMessage('SYSTEM', 'USAGE: friend add [email]', true);
+                        addMessage('SYSTEM', 'USAGE: friend add [email] OR friend nick [email] [nick]', true);
                     }
                     break;
 
@@ -903,7 +903,7 @@
                     if (args[0]) {
                         startChat(args[0]);
                     } else {
-                        addMessage('SYSTEM', 'USAGE: chat [email]', true);
+                        addMessage('SYSTEM', 'USAGE: chat [name/email]', true);
                     }
                     break;
 
@@ -912,8 +912,6 @@
                     break;
 
                 case 'exit':
-                    // Just clear the prompt or something?
-                    // Usually handled in processChatInput
                     break;
 
                 default:
@@ -949,15 +947,36 @@
                     uid: targetUser.uid,
                     displayName: targetUser.displayName,
                     addedAt: serverTimestamp()
-                });
+                }, { merge: true });
                 addMessage('SYSTEM', `FRIEND ADDED.`, true);
             } catch (error) {
                 addMessage('ERROR', 'DB ERROR: ' + error.message, false, false, true);
             }
         }
 
+        async function setNickname(targetEmail, nickname) {
+            addMessage('SYSTEM', `SETTING NICKNAME...`, true);
+            try {
+                // Find friend by email in my friends list
+                const friendsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'friends');
+                const q = query(friendsRef, where("email", "==", targetEmail));
+                const snapshot = await getDocs(q);
+
+                if (snapshot.empty) {
+                    addMessage('ERROR', 'FRIEND NOT FOUND IN LIST. ADD FIRST.', false, false, true);
+                    return;
+                }
+
+                const friendDoc = snapshot.docs[0];
+                await setDoc(friendDoc.ref, { nickname: nickname }, { merge: true });
+                addMessage('SYSTEM', `NICKNAME SET: ${nickname} -> ${targetEmail}`, true);
+            } catch (error) {
+                addMessage('ERROR', 'UPDATE FAILED: ' + error.message, false, false, true);
+            }
+        }
+
         async function listFriends() {
-            addMessage('SYSTEM', 'FETCHING FRIEND LIST & STATUS...', true);
+            addMessage('SYSTEM', 'FETCHING FRIEND LIST...', true);
             try {
                 const friendsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'friends');
                 const snapshot = await getDocs(friendsRef);
@@ -981,13 +1000,15 @@
                 const friendsWithStatus = await Promise.all(promises);
 
                 friendsWithStatus.forEach(f => {
-                    let dotClass = 'status-online'; // default
+                    let dotClass = 'status-online'; 
                     if (f.status === 'away') dotClass = 'status-away';
                     if (f.status === 'busy') dotClass = 'status-busy';
                     
+                    const displayName = f.nickname ? `${f.nickname} <${f.email}>` : f.email;
+                    
                     const div = document.createElement('div');
                     div.className = 'message-line';
-                    div.innerHTML = `<span class="status-dot ${dotClass}">●</span> ${f.email}`;
+                    div.innerHTML = `<span class="status-dot ${dotClass}">●</span> ${displayName}`;
                     history.appendChild(div);
                 });
                 scrollToBottom();
@@ -997,14 +1018,22 @@
             }
         }
 
-        async function startChat(friendEmail) {
+        async function startChat(identifier) {
             try {
                 const friendsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'friends');
-                const q = query(friendsRef, where("email", "==", friendEmail));
-                const snapshot = await getDocs(q);
+                
+                // Strategy 1: Try finding by nickname first
+                let q = query(friendsRef, where("nickname", "==", identifier));
+                let snapshot = await getDocs(q);
+
+                // Strategy 2: If not found, try finding by email
+                if (snapshot.empty) {
+                    q = query(friendsRef, where("email", "==", identifier));
+                    snapshot = await getDocs(q);
+                }
 
                 if (snapshot.empty) {
-                    addMessage('ERROR', 'FRIEND NOT FOUND. ADD FIRST.', false, false, true);
+                    addMessage('ERROR', 'FRIEND NOT FOUND (CHECK NICK OR EMAIL).', false, false, true);
                     return;
                 }
 
@@ -1013,7 +1042,9 @@
                 
                 state.mode = 'CHAT';
                 history.innerHTML = ''; 
-                addMessage('SYSTEM', `--- CONNECTION ESTABLISHED: ${friendData.email} ---`, true);
+                // Prefer nickname in display
+                const chatName = friendData.nickname || friendData.email;
+                addMessage('SYSTEM', `--- CONNECTION ESTABLISHED: ${chatName} ---`, true);
                 addMessage('SYSTEM', `CMDS: 'burn [msg]', 'exit'`, true);
                 updatePrompt(currentUser.email);
 
@@ -1029,7 +1060,13 @@
                         // HANDLE ADDED
                         if (change.type === "added") {
                             const msg = change.doc.data();
-                            const senderName = msg.senderId === currentUser.uid ? 'ME' : friendData.email.split('@')[0];
+                            let senderName;
+                            if (msg.senderId === currentUser.uid) {
+                                senderName = 'ME';
+                            } else {
+                                // Use nickname if available
+                                senderName = friendData.nickname || friendData.email.split('@')[0];
+                            }
                             addMessage(senderName, msg.text, false, true, false, false, change.doc.id, msg.burn);
                         }
                         // HANDLE REMOVED (Burned messages)
@@ -1038,7 +1075,7 @@
                             const el = msgMap.get(msgId);
                             if (el) {
                                 el.style.opacity = '0';
-                                setTimeout(() => el.remove(), 500); // Wait for fade out
+                                setTimeout(() => el.remove(), 500); 
                                 msgMap.delete(msgId);
                             }
                         }
