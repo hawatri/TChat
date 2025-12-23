@@ -65,7 +65,7 @@
             background-size: 100% 4px, 3px 100%;
             pointer-events: none;
             z-index: 10;
-            animation: flicker 0.7s infinite;
+            animation: flicker 0.15s infinite;
         }
 
         .crt-overlay::before {
@@ -303,7 +303,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signInAnonymously, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signInAnonymously, setPersistence, browserLocalPersistence, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, setDoc, doc, getDocs, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Configuration ---
@@ -340,7 +340,7 @@
 
         // --- Autocomplete Data ---
         const commandsList = [
-            'help', 'login', 'friend', 'friends', 'friends-email', 'chat', 'reqbox', 'radio',
+            'help', 'login', 'logout', 'friend', 'friends', 'friends-email', 'chat', 'reqbox', 'radio',
             'burn', 'theme', 'ascii', 'mute', 'unmute', 
             'clear', 'status', 'date', 'exit', 'emoji'
         ];
@@ -909,6 +909,7 @@
                 case 'help':
                     addMessage('SYSTEM', 'COMMANDS:', true);
                     addMessage(null, '  login            - Sign in with Google');
+                    addMessage(null, '  logout           - Sign out');
                     addMessage(null, '  friend add [email]     - Add friend');
                     addMessage(null, '  friend nick [email] [nick] - Set nickname');
                     addMessage(null, '  friends          - List friends');
@@ -995,6 +996,19 @@
                         addMessage('SYSTEM', 'ALREADY LOGGED IN.', true);
                     } else {
                         await handleLogin();
+                    }
+                    break;
+
+                case 'logout':
+                    if (currentUser && !currentUser.isAnonymous) {
+                        try {
+                            await signOut(auth);
+                            addMessage('SYSTEM', 'LOGGED OUT. REVERTING TO GUEST MODE...', true);
+                        } catch (e) {
+                            addMessage('ERROR', 'LOGOUT FAILED: ' + e.message, false, false, true);
+                        }
+                    } else {
+                        addMessage('SYSTEM', 'ALREADY IN GUEST MODE.', true);
                     }
                     break;
 
