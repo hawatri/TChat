@@ -20,15 +20,13 @@
             --system-color: #ffaa00; 
             --chat-color: #00ccff;
             --error-color: #ff3333;
-            --radio-color: #ff33cc; /* Magenta for Radio */
+            --radio-color: #ff33cc;
         }
 
         body {
             margin: 0;
             padding: 0;
             background-color: var(--terminal-bg);
-            height: 100vh;
-            /* Mobile: Fix height issues with address bar */
             height: 100dvh; 
             width: 100vw;
             font-family: 'VT323', monospace;
@@ -119,7 +117,7 @@
             animation: fadeIn 0.1s forwards;
             max-width: 90%;
             white-space: pre-wrap; 
-            transition: opacity 0.5s ease-out; /* For burn effect fade out */
+            transition: opacity 0.5s ease-out;
         }
 
         .ascii-art {
@@ -138,13 +136,11 @@
         .error-msg { color: var(--error-color); text-shadow: 0 0 4px var(--error-color); }
         .user-prefix { font-weight: bold; margin-right: 0.5rem; }
 
-        /* Status Indicators */
         .status-dot { display: inline-block; margin-right: 8px; font-size: 1.2rem; }
         .status-online { color: var(--terminal-main); text-shadow: 0 0 5px var(--terminal-main); }
         .status-away { color: var(--system-color); text-shadow: 0 0 5px var(--system-color); }
         .status-busy { color: var(--error-color); text-shadow: 0 0 5px var(--error-color); }
 
-        /* Burn Timer */
         .burn-timer { color: var(--error-color); margin-left: 10px; font-size: 0.8em; font-weight: bold; }
 
         .input-line {
@@ -155,6 +151,9 @@
             padding-bottom: 5px;
             background-color: rgba(0,0,0,0.5);
             position: relative;
+            /* Hidden initially for boot sequence */
+            opacity: 0; 
+            transition: opacity 0.5s;
         }
 
         .prompt { margin-right: 15px; font-weight: bold; }
@@ -212,23 +211,21 @@
             animation: none;
         }
 
-        /* --- Autocomplete Drop-Up Menu --- */
         #autocomplete-menu {
             position: absolute;
-            bottom: 120%; /* Pushes it above the input line */
+            bottom: 120%; 
             left: 0;
             min-width: 200px;
             max-height: 250px;
             background-color: var(--terminal-bg);
             border: 1px solid var(--terminal-main);
             box-shadow: 0 0 10px rgba(0,0,0,0.8);
-            display: none; /* Hidden by default */
+            display: none; 
             flex-direction: column;
             overflow-y: auto;
             z-index: 100;
         }
         
-        /* Custom scrollbar for menu */
         #autocomplete-menu::-webkit-scrollbar { width: 5px; }
         #autocomplete-menu::-webkit-scrollbar-track { background: #000; }
         #autocomplete-menu::-webkit-scrollbar-thumb { background-color: var(--terminal-main); }
@@ -246,7 +243,6 @@
             background-color: var(--terminal-main);
             color: var(--terminal-bg);
         }
-        /* -------------------------------- */
 
         @keyframes flicker {
             0% { opacity: 0.97; } 50% { opacity: 0.99; } 100% { opacity: 0.94; }
@@ -272,61 +268,16 @@
             text-shadow: 0 1px 1px rgba(255,255,255,0.1);
         }
 
-        /* --- MOBILE RESPONSIVENESS --- */
         @media (max-width: 768px) {
-            /* Reduce bezel size to save space */
-            .bezel-overlay {
-                border-width: 10px;
-                border-radius: 12px;
-            }
-            
-            /* Maximize content area */
-            .terminal-content {
-                padding: 15px; 
-                padding-bottom: 20px;
-                font-size: 1.2rem;
-            }
-
-            /* Adjust input area for touch */
-            .input-line {
-                padding-top: 10px;
-            }
-            
-            .prompt {
-                margin-right: 5px;
-            }
-
-            #command-input, #cmd-display {
-                font-size: 1.2rem;
-            }
-
-            /* Move decorations out of the way */
-            .brand-logo {
-                font-size: 0.7rem;
-                bottom: 2px;
-                letter-spacing: 1px;
-                opacity: 0.5; /* Fade it out slightly */
-            }
-
-            .power-led {
-                width: 6px;
-                height: 6px;
-                bottom: 10px;
-                right: 10px;
-            }
-
-            /* Adjust autocomplete for smaller screens */
-            #autocomplete-menu {
-                max-height: 180px;
-                min-width: 150px;
-                bottom: 100%;
-                left: 0;
-            }
-            
-            .suggestion-item {
-                font-size: 1.2rem;
-                padding: 8px; /* Tappable area */
-            }
+            .bezel-overlay { border-width: 10px; border-radius: 12px; }
+            .terminal-content { padding: 15px; padding-bottom: 20px; font-size: 1.2rem; }
+            .input-line { padding-top: 10px; }
+            .prompt { margin-right: 5px; }
+            #command-input, #cmd-display { font-size: 1.2rem; }
+            .brand-logo { font-size: 0.7rem; bottom: 2px; letter-spacing: 1px; opacity: 0.5; }
+            .power-led { width: 6px; height: 6px; bottom: 10px; right: 10px; }
+            #autocomplete-menu { max-height: 180px; min-width: 150px; bottom: 100%; left: 0; }
+            .suggestion-item { font-size: 1.2rem; padding: 8px; }
         }
     </style>
 </head>
@@ -338,20 +289,13 @@
         <div class="brand-logo">SONY TRINITRON</div>
 
         <div class="terminal-content" id="terminal-container">
-            <div id="chat-history">
-                <div class="message-line system-msg">BOOT_SEQUENCE_INIT...</div>
-                <div class="message-line system-msg">LOADING T-CHAT MODULES...</div>
-                <div class="message-line">Welcome to T-CHAT.</div>
-                <div class="message-line">Status: CONNECTING...</div>
-            </div>
+            <div id="chat-history"></div>
 
-            <div class="input-line">
+            <div class="input-line" id="input-line-container">
                 <span class="prompt" id="prompt-span">...</span>
                 <div class="cmd-wrapper">
-                    <!-- Autocomplete Menu -->
                     <div id="autocomplete-menu"></div>
-                    
-                    <input type="text" id="command-input" autocomplete="off" autofocus>
+                    <input type="text" id="command-input" autocomplete="off">
                     <div id="cmd-display">
                         <span id="cmd-before"></span><span id="cmd-cursor">&nbsp;</span><span id="cmd-after"></span>
                     </div>
@@ -389,8 +333,9 @@
         let currentChatPartner = null; 
         let messagesUnsubscribe = null;
         const state = {
-            mode: 'COMMAND', // 'COMMAND', 'CHAT', 'RADIO'
-            muted: false
+            mode: 'COMMAND', 
+            muted: false,
+            booting: true // Start in boot mode
         };
         
         // --- Command History ---
@@ -558,6 +503,7 @@
 
         // --- UI References ---
         const input = document.getElementById('command-input');
+        const inputLineContainer = document.getElementById('input-line-container');
         const history = document.getElementById('chat-history');
         const container = document.getElementById('terminal-container');
         const promptSpan = document.getElementById('prompt-span');
@@ -673,7 +619,74 @@
             }
         }
 
-        // --- Auth & Presence ---
+        // --- Boot Sequence & Auth ---
+        
+        const bootText = [
+            "BIOS DATE 01/01/99 14:22:55 VER 1.0.2",
+            "CPU: NEC V60, SPEED: 33MHz",
+            "640K RAM SYSTEM... OK",
+            "LOADING T-OS KERNEL...",
+            "MOUNTING VIRTUAL FILESYSTEM... OK",
+            "INITIATING NETWORK PROTOCOLS...",
+            "  > TCP/IP... UP",
+            "  > FIREWALL... ACTIVE",
+            "  > ENCRYPTION... ENABLED",
+            "CONNECTING TO SATELLITE UPLINK...",
+            "CONNECTION ESTABLISHED.",
+            "STARTING T-CHAT INTERFACE..."
+        ];
+
+        async function runBootSequence() {
+            // Wait a moment for effect
+            await new Promise(r => setTimeout(r, 800));
+            
+            for (const line of bootText) {
+                addMessage(null, line, true); 
+                // Random typing delay
+                await new Promise(r => setTimeout(r, 100 + Math.random() * 250));
+            }
+            
+            // Final pause before clear
+            await new Promise(r => setTimeout(r, 1000));
+            
+            history.innerHTML = '';
+            state.booting = false;
+            
+            // Show UI
+            inputLineContainer.style.opacity = '1';
+            input.focus();
+            showWelcomeScreen();
+        }
+
+        function showWelcomeScreen() {
+            const logo = `
+  _______   _____ _           _   
+ |__   __| / ____| |         | |  
+    | |   | |    | |__   __ _| |_ 
+    | |   | |    | '_ \\ / _\` | __|
+    | |   | |____| | | | (_| | |_ 
+    |_|    \\_____|_| |_|\\__,_|\\__|  v2.0
+            `;
+            addMessage(null, logo, false, false, false, true); // Ascii art mode
+
+            addMessage('SYSTEM', 'WELCOME, USER.', true);
+            addMessage(null, '------------------------------------------------');
+            addMessage(null, 'QUICK START GUIDE:');
+            addMessage(null, '1. LOGIN:        Type "login" to sign in with Google.');
+            addMessage(null, '2. COMMANDS:     Type "help" to see available tools.');
+            addMessage(null, '3. SHORTCUTS:    Press [TAB] to autocomplete commands.');
+            addMessage(null, '4. EMOJIS:       Type "(" and [TAB] to see the menu.');
+            addMessage(null, '                 Ex: (tableflip) -> (ノ ゜Д゜)ノ ︵ ┻━┻');
+            addMessage(null, '------------------------------------------------');
+            
+            // If auth finished during boot, show status now
+            if (currentUser && !currentUser.isAnonymous) {
+                addMessage('SYSTEM', `SESSION RESTORED: ${currentUser.email}`, true);
+            }
+            
+            addMessage('SYSTEM', 'SYSTEM READY. AWAITING INPUT...', true);
+        }
+
         const initGuestAuth = async () => {
             try { await signInAnonymously(auth); } 
             catch (e) { console.warn("Guest login failed:", e.code); }
@@ -696,14 +709,13 @@
             if (user) {
                 if (user.isAnonymous) {
                      updatePrompt('guest');
-                     addMessage('SYSTEM', 'GUEST MODE ACTIVE.', true);
+                     // Only show if not booting (boot sequence handles initial welcome)
+                     if (!state.booting) addMessage('SYSTEM', 'GUEST MODE ACTIVE.', true);
                 } else {
                     updatePrompt(user.email.split('@')[0]);
-                    addMessage('SYSTEM', `AUTHENTICATED AS ${user.email}`, true);
-                    // Initial Status Set
-                    await updateStatus('online');
+                    if (!state.booting) addMessage('SYSTEM', `AUTHENTICATED AS ${user.email}`, true);
                     
-                    // Profile Init
+                    await updateStatus('online');
                     try {
                         const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', user.uid);
                         await setDoc(userRef, {
@@ -720,6 +732,9 @@
                 initGuestAuth();
             }
         });
+
+        // Trigger Boot
+        window.onload = runBootSequence;
 
         const handleLogin = async () => {
             try {
@@ -762,7 +777,6 @@
             const interval = setInterval(() => {
                 element.innerText = originalText.split('').map((char, index) => {
                     if (char === ' ' || char === '\n') return char; 
-                    // Using floor to allow fractional increments for slower resolution
                     if (index < Math.floor(iterations)) return originalText[index];
                     return chars[Math.floor(Math.random() * chars.length)];
                 }).join('');
@@ -772,14 +786,10 @@
                     element.innerText = originalText;
                 }
                 
-                // Slowed down logic:
-                // Base speed: 1/3 of a character per tick (previously 1+)
-                // Scaling: Adds tiny speed boost for very long text so it doesn't take forever
                 iterations += 1/3 + (originalText.length / 300); 
-            }, 60); // Increased tick duration from 50ms to 60ms
+            }, 60); 
         }
 
-        // Map Firestore msg ID to DOM element for deletion
         const msgMap = new Map();
 
         function addMessage(sender, text, isSystem = false, isChat = false, isError = false, isAscii = false, msgId = null, isBurn = false, isRadio = false) {
@@ -830,18 +840,16 @@
 
             msgDiv.appendChild(contentSpan);
 
-            // Burn Logic Visuals
             if (isBurn) {
                 const burnSpan = document.createElement('span');
                 burnSpan.className = 'burn-timer';
-                burnSpan.textContent = ' [10s]';
+                burnSpan.textContent = ' [🔥 10s]';
                 msgDiv.appendChild(burnSpan);
 
-                // Local countdown visual (actual deletion handled by DB listener or sender)
                 let left = 10;
                 const timer = setInterval(() => {
                     left--;
-                    if(left >= 0) burnSpan.textContent = ` [${left}s]`;
+                    if(left >= 0) burnSpan.textContent = ` [🔥 ${left}s]`;
                     else {
                         clearInterval(timer);
                     }
@@ -866,13 +874,11 @@
         input.addEventListener('keydown', function(event) {
             SoundSys.init();
             
-            // --- Autocomplete Handling ---
             if (event.key === 'Tab') {
                 handleTabCompletion(event);
-                return; // Stop other processing
+                return; 
             }
 
-            // If menu is open, handle navigation keys specially
             if (autocompleteMenu.style.display === 'flex') {
                 if (event.key === 'ArrowUp') {
                     event.preventDefault();
@@ -899,7 +905,6 @@
                     return;
                 }
             } else {
-                // --- Normal History Navigation (only if menu closed) ---
                 if (event.key === 'ArrowUp') {
                     event.preventDefault();
                     if (cmdHistory.length > 0) {
@@ -925,7 +930,6 @@
                 }
             }
 
-            // --- Hiding menu on typing (reset) ---
             if (event.key.length === 1 || event.key === 'Backspace') {
                  if (event.key !== 'Tab') hideAutocomplete();
             }
@@ -962,7 +966,6 @@
                 hideAutocomplete();
             }
         });
-        window.onload = () => input.focus();
 
         async function processCommand(rawCmd) {
             const parts = rawCmd.split(' ');
