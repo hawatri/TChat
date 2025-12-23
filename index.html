@@ -337,7 +337,7 @@
 
         // --- Autocomplete Data ---
         const commandsList = [
-            'help', 'login', 'friend', 'friends', 'friends-email', 'chat', 
+            'help', 'login', 'friend', 'friends', 'friends-email', 'chat', 'inbox',
             'burn', 'theme', 'ascii', 'mute', 'unmute', 
             'clear', 'status', 'date', 'exit', 'emoji'
         ];
@@ -913,6 +913,7 @@
                     addMessage(null, '  friend nick [email] [nick] - Set nickname');
                     addMessage(null, '  friends          - List friends');
                     addMessage(null, '  friends-email    - List emails & nicknames');
+                    addMessage(null, '  inbox            - Check for new messages');
                     addMessage(null, '  status [mode]    - online/away/busy');
                     addMessage(null, '  chat [name/email] - Start chat');
                     addMessage(null, '  burn [msg]       - Send self-destruct msg');
@@ -1015,6 +1016,11 @@
                 case 'friends-email':
                     if (!ensureAuth()) return;
                     listFriendsEmails();
+                    break;
+
+                case 'inbox':
+                    if (!ensureAuth()) return;
+                    checkInbox();
                     break;
 
                 case 'chat':
@@ -1159,31 +1165,98 @@
             }
         }
 
-        async function startChat(identifier) {
+        async function checkInbox() {
+            addMessage('SYSTEM', 'SCANNING FREQUENCIES (INBOX)...', true);
             try {
-                const friendsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'friends');
-                
-                // Strategy 1: Try finding by nickname first
-                let q = query(friendsRef, where("nickname", "==", identifier));
-                let snapshot = await getDocs(q);
-
-                // Strategy 2: If not found, try finding by email
-                if (snapshot.empty) {
-                    q = query(friendsRef, where("email", "==", identifier));
-                    snapshot = await getDocs(q);
-                }
+                // Warning: This scans all messages sent to user. In a real app, optimize this.
+                const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
+                // We rely on 'receiverId' index if needed, but for small scale this works.
+                const q = query(msgsRef, where('receiverId', '==', currentUser.uid));
+                const snapshot = await getDocs(q);
 
                 if (snapshot.empty) {
-                    addMessage('ERROR', 'FRIEND NOT FOUND (CHECK NICK OR EMAIL).', false, false, true);
+                    addMessage(null, 'NO MESSAGES FOUND.');
                     return;
                 }
 
-                const friendData = snapshot.docs[0].data();
+                // Aggregate unique senders
+                const senders = new Set();
+                snapshot.forEach(doc => {
+                    senders.add(doc.data().senderId);
+                });
+
+                if (senders.size === 0) {
+                    addMessage(null, 'NO MESSAGES FOUND.');
+                    return;
+                }
+
+                addMessage(null, `FOUND MESSAGES FROM ${senders.size} USER(S):`);
+
+                // Fetch details for each sender
+                for (const uid of senders) {
+                    const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', uid);
+                    const snap = await getDoc(profileRef);
+                    if (snap.exists()) {
+                        const data = snap.data();
+                        addMessage(null, `> ${data.email} [${uid.slice(0,5)}..]`);
+                    } else {
+                        addMessage(null, `> UNKNOWN_USER [${uid}]`);
+                    }
+                }
+                
+                addMessage('SYSTEM', "TYPE 'chat [email]' TO REPLY.", true);
+
+            } catch (error) {
+                console.error(error);
+                if (error.message.includes('index')) {
+                     addMessage('ERROR', 'INDEX MISSING. CHECK CONSOLE.', false, false, true);
+                } else {
+                     addMessage('ERROR', 'SCAN FAILED: ' + error.message, false, false, true);
+                }
+            }
+        }
+
+        async function startChat(identifier) {
+            try {
+                let friendData = null;
+                
+                // 1. Try finding in friends by nickname
+                const friendsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'friends');
+                let q = query(friendsRef, where("nickname", "==", identifier));
+                let snapshot = await getDocs(q);
+
+                if (!snapshot.empty) {
+                    friendData = snapshot.docs[0].data();
+                } else {
+                    // 2. Try finding in friends by email
+                    q = query(friendsRef, where("email", "==", identifier));
+                    snapshot = await getDocs(q);
+                    if (!snapshot.empty) {
+                        friendData = snapshot.docs[0].data();
+                    }
+                }
+
+                // 3. If not in friends, try Public Directory (Global Lookup)
+                if (!friendData) {
+                    const publicUsersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
+                    const qPub = query(publicUsersRef, where("email", "==", identifier));
+                    const snapPub = await getDocs(qPub);
+                    
+                    if (!snapPub.empty) {
+                        friendData = snapPub.docs[0].data();
+                        addMessage('SYSTEM', 'USER FOUND IN PUBLIC DIRECTORY (NOT IN FRIENDS).', true);
+                    }
+                }
+
+                if (!friendData) {
+                    addMessage('ERROR', 'USER NOT FOUND (CHECK EMAIL/NICK).', false, false, true);
+                    return;
+                }
+
                 currentChatPartner = friendData;
                 
                 state.mode = 'CHAT';
                 history.innerHTML = ''; 
-                // Prefer nickname in display
                 const chatName = friendData.nickname || friendData.email;
                 addMessage('SYSTEM', `--- CONNECTION ESTABLISHED: ${chatName} ---`, true);
                 addMessage('SYSTEM', `CMDS: 'burn [msg]', 'ascii [url]', 'exit'`, true);
@@ -1198,19 +1271,16 @@
 
                 messagesUnsubscribe = onSnapshot(qMsg, (snapshot) => {
                     snapshot.docChanges().forEach((change) => {
-                        // HANDLE ADDED
                         if (change.type === "added") {
                             const msg = change.doc.data();
                             let senderName;
                             if (msg.senderId === currentUser.uid) {
                                 senderName = 'ME';
                             } else {
-                                // Use nickname if available
                                 senderName = friendData.nickname || friendData.email.split('@')[0];
                             }
                             addMessage(senderName, msg.text, false, true, false, msg.isAscii || false, change.doc.id, msg.burn);
                         }
-                        // HANDLE REMOVED (Burned messages)
                         if (change.type === "removed") {
                             const msgId = change.doc.id;
                             const el = msgMap.get(msgId);
@@ -1255,7 +1325,6 @@
                 finalBody = text.substring(5); // Remove 'burn '
             }
 
-            // Check for ASCII command inside chat
             if (finalBody.toLowerCase().startsWith('ascii ')) {
                 addMessage('SYSTEM', 'FETCHING ASCII ART...', true);
                 const url = finalBody.substring(6).trim();
@@ -1270,7 +1339,6 @@
                 }
             }
 
-            // Parse Emojis
             finalBody = parseEmojis(finalBody);
 
             const convoId = getConversationId(currentUser.uid, currentChatPartner.uid);
@@ -1287,12 +1355,10 @@
                     timestamp: serverTimestamp()
                 });
 
-                // If it's a burn message, schedule deletion from the sender side
                 if (isBurn) {
                     setTimeout(async () => {
                         try {
                             await deleteDoc(docRef);
-                            // Visual removal happens via onSnapshot 'removed' event
                         } catch(e) { console.error("Burn failed", e); }
                     }, 10000);
                 }
