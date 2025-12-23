@@ -114,6 +114,17 @@
             opacity: 0;
             animation: fadeIn 0.1s forwards;
             max-width: 90%;
+            white-space: pre-wrap; /* Allows whitespace for simple ASCII */
+        }
+
+        .ascii-art {
+            white-space: pre;
+            font-size: 0.8rem;
+            line-height: 1rem;
+            overflow-x: auto;
+            color: var(--terminal-main);
+            margin: 10px 0;
+            display: block;
         }
 
         .system-msg { color: var(--system-color); text-shadow: 0 0 4px var(--system-color); }
@@ -275,6 +286,10 @@
             mode: 'COMMAND', 
             muted: false
         };
+        
+        // --- Command History ---
+        const cmdHistory = [];
+        let historyIndex = -1;
 
         // --- Sound System ---
         const SoundSys = {
@@ -334,8 +349,6 @@
         const history = document.getElementById('chat-history');
         const container = document.getElementById('terminal-container');
         const promptSpan = document.getElementById('prompt-span');
-        
-        // Custom Cursor References
         const cmdBefore = document.getElementById('cmd-before');
         const cmdCursor = document.getElementById('cmd-cursor');
         const cmdAfter = document.getElementById('cmd-after');
@@ -343,9 +356,8 @@
         function updateInputDisplay() {
             const val = input.value;
             const selStart = input.selectionStart || 0;
-            
             const left = val.substring(0, selStart);
-            const char = val.substring(selStart, selStart + 1) || '\u00A0'; // nbsp if at end
+            const char = val.substring(selStart, selStart + 1) || '\u00A0';
             const right = val.substring(selStart + 1);
 
             cmdBefore.textContent = left;
@@ -353,11 +365,8 @@
             cmdAfter.textContent = right;
         }
 
-        // Attach listeners for visual sync
-        ['input', 'keydown', 'keyup', 'click', 'focus', 'blur'].forEach(evt => {
-            input.addEventListener(evt, () => {
-                requestAnimationFrame(updateInputDisplay);
-            });
+        ['input', 'click', 'focus', 'blur'].forEach(evt => {
+            input.addEventListener(evt, () => requestAnimationFrame(updateInputDisplay));
         });
 
         // --- Auth Logic ---
@@ -405,70 +414,149 @@
             }
         };
 
-        // --- UI Functions ---
         function updatePrompt(username) {
             if (state.mode === 'CHAT') {
                 promptSpan.textContent = `[CHAT:${currentChatPartner.email}] >`;
-                // Logic to change cursor color if needed, but CSS handles it via variables
             } else {
                 promptSpan.textContent = `${username}@TChat:~$`;
             }
         }
 
-        function addMessage(sender, text, isSystem = false, isChat = false, isError = false) {
+        // --- Encryption Effect Helper ---
+        function scrambleText(element, finalValidText) {
+            const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()";
+            let iterations = 0;
+            const maxIterations = 10; // How long to scramble
+            const originalText = finalValidText;
+            
+            const interval = setInterval(() => {
+                element.innerText = originalText.split('').map((char, index) => {
+                    if (char === ' ' || char === '\n') return char; // Preserve spaces
+                    if (index < iterations) return originalText[index];
+                    return chars[Math.floor(Math.random() * chars.length)];
+                }).join('');
+                
+                if (iterations >= originalText.length) {
+                    clearInterval(interval);
+                    element.innerText = originalText;
+                }
+                
+                // For long text, resolve faster; for short, resolve slower relative to length
+                iterations += 1 + Math.floor(originalText.length / 30); 
+            }, 50);
+        }
+
+        function addMessage(sender, text, isSystem = false, isChat = false, isError = false, isAscii = false) {
             const msgDiv = document.createElement('div');
             msgDiv.classList.add('message-line');
             if (isSystem) msgDiv.classList.add('system-msg');
             if (isChat) msgDiv.classList.add('chat-msg');
             if (isError) msgDiv.classList.add('error-msg');
+            if (isAscii) msgDiv.classList.add('ascii-art');
 
             if (!state.muted && (isSystem || (isChat && sender !== 'ME'))) {
                 setTimeout(() => SoundSys.blip(), 50);
             }
+
+            const contentSpan = document.createElement('span');
 
             if (sender) {
                 let prefixColor = 'var(--terminal-main)';
                 if (isChat) prefixColor = 'var(--chat-color)';
                 if (isSystem) prefixColor = 'var(--system-color)';
                 if (isError) prefixColor = 'var(--error-color)';
-
-                msgDiv.innerHTML = `<span class="user-prefix" style="color:${prefixColor}">[${sender}]:</span> ${escapeHtml(text)}`;
-            } else {
-                msgDiv.innerHTML = text;
+                
+                const prefixSpan = document.createElement('span');
+                prefixSpan.className = 'user-prefix';
+                prefixSpan.style.color = prefixColor;
+                prefixSpan.textContent = `[${sender}]: `;
+                msgDiv.appendChild(prefixSpan);
             }
 
+            // Only escape HTML if NOT ascii (Ascii might be pre-formatted or handled safely via textContent)
+            // Actually, safe bet is always textContent to avoid XSS, but we need scrambling
+            if (isAscii) {
+                contentSpan.textContent = text;
+            } else {
+                contentSpan.textContent = text; 
+                // We use textContent instead of innerHTML for safety, 
+                // but the CSS 'white-space: pre-wrap' handles formatting.
+            }
+
+            msgDiv.appendChild(contentSpan);
             history.appendChild(msgDiv);
             scrollToBottom();
+
+            // Apply Encryption Effect if it's an incoming chat message or system message
+            // Don't scramble own messages ('ME') or Error messages
+            if ((isChat && sender !== 'ME') || isSystem) {
+                // Don't scramble ASCII art, it looks messy
+                if (!isAscii) {
+                    scrambleText(contentSpan, text);
+                }
+            }
         }
 
         function scrollToBottom() {
             container.scrollTop = container.scrollHeight;
         }
 
-        function escapeHtml(text) {
-            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        }
-
         // --- Command Processing ---
         input.addEventListener('keydown', function(event) {
             SoundSys.init();
-            if (!['Enter', 'Shift', 'Control', 'Alt'].includes(event.key)) {
+            
+            // --- History Navigation ---
+            if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                if (cmdHistory.length > 0) {
+                    if (historyIndex < cmdHistory.length - 1) {
+                        historyIndex++;
+                        input.value = cmdHistory[cmdHistory.length - 1 - historyIndex];
+                        updateInputDisplay();
+                    }
+                }
+                return;
+            }
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                if (historyIndex > 0) {
+                    historyIndex--;
+                    input.value = cmdHistory[cmdHistory.length - 1 - historyIndex];
+                } else if (historyIndex === 0) {
+                    historyIndex = -1;
+                    input.value = '';
+                }
+                updateInputDisplay();
+                return;
+            }
+            // --------------------------
+
+            if (!['Enter', 'Shift', 'Control', 'Alt', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
                 SoundSys.click();
             }
 
             if (event.key === 'Enter') {
-                const text = input.value.trim();
-                if (text !== "") {
+                const text = input.value; // Don't trim immediately to preserve ascii paste start? actually trim is usually good for cmds
+                const trimmed = text.trim();
+                
+                if (trimmed !== "") {
+                    // Add to History
+                    cmdHistory.push(trimmed);
+                    historyIndex = -1;
+
                     if (state.mode === 'COMMAND') {
-                        addMessage('ME', text);
-                        processCommand(text);
+                        addMessage('ME', trimmed);
+                        processCommand(trimmed);
                     } else {
-                        processChatInput(text);
+                        processChatInput(trimmed);
                     }
                     input.value = '';
                     updateInputDisplay();
                 }
             }
+            
+            // Sync display on keypress
+            requestAnimationFrame(updateInputDisplay);
         });
 
         document.addEventListener('click', () => { input.focus(); SoundSys.init(); });
@@ -486,7 +574,8 @@
                     addMessage(null, '  friend add [email] - Add a friend');
                     addMessage(null, '  friends          - List friends');
                     addMessage(null, '  chat [email]     - Start chat');
-                    addMessage(null, '  theme [color]    - green/amber/blue/white/matrix');
+                    addMessage(null, '  theme [color]    - Set terminal color');
+                    addMessage(null, '  ascii [url]      - Render ASCII from URL');
                     addMessage(null, '  mute / unmute    - Toggle sounds');
                     addMessage(null, '  clear            - Clear screen');
                     break;
@@ -506,13 +595,39 @@
                     SoundSys.blip(); 
                     addMessage('SYSTEM', 'SOUNDS ACTIVE.', true);
                     break;
+                
+                case 'ascii':
+                    if (args[0]) {
+                        addMessage('SYSTEM', `FETCHING ASCII FROM ${args[0]}...`, true);
+                        try {
+                            const response = await fetch(args[0]);
+                            if (!response.ok) throw new Error("Network response was not ok");
+                            const text = await response.text();
+                            addMessage(null, text, false, false, false, true); // true for isAscii
+                        } catch (e) {
+                            addMessage('ERROR', `FAILED TO FETCH ASCII: ${e.message}. (CORS may block this URL)`, false, false, true);
+                        }
+                    } else {
+                        addMessage('SYSTEM', 'USAGE: ascii [url]', true);
+                        // Bonus: Show a built-in one
+                         const skull = `
+      _______
+    .'_/_|_\\_'.
+    \\      /
+     |  ?  ?  |
+     |   <    |
+     |  ___  |
+     '._____.'`;
+                        addMessage(null, skull, false, false, false, true);
+                    }
+                    break;
 
                 case 'theme':
                     if (args[0]) {
                         if (applyTheme(args[0])) {
                             addMessage('SYSTEM', `THEME SET TO ${args[0].toUpperCase()}`, true);
                         } else {
-                            addMessage('ERROR', 'UNKNOWN THEME. TRY: green, amber, blue, white, matrix', false, false, true);
+                            addMessage('ERROR', 'UNKNOWN THEME.', false, false, true);
                         }
                     } else {
                         addMessage('SYSTEM', 'USAGE: theme [green|amber|blue|white|matrix]', true);
@@ -644,6 +759,7 @@
                         if (change.type === "added") {
                             const msg = change.doc.data();
                             const senderName = msg.senderId === currentUser.uid ? 'ME' : friendData.email.split('@')[0];
+                            // Apply encryption effect here by default for incoming
                             addMessage(senderName, msg.text, false, true);
                         }
                     });
