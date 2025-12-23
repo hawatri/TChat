@@ -337,7 +337,7 @@
 
         // --- Autocomplete Data ---
         const commandsList = [
-            'help', 'login', 'friend', 'friends', 'chat', 
+            'help', 'login', 'friend', 'friends', 'friends-email', 'chat', 
             'burn', 'theme', 'ascii', 'mute', 'unmute', 
             'clear', 'status', 'date', 'exit'
         ];
@@ -806,6 +806,7 @@
                     addMessage(null, '  friend add [email]     - Add friend');
                     addMessage(null, '  friend nick [email] [nick] - Set nickname');
                     addMessage(null, '  friends          - List friends');
+                    addMessage(null, '  friends-email    - List emails & nicknames');
                     addMessage(null, '  status [mode]    - online/away/busy');
                     addMessage(null, '  chat [name/email] - Start chat');
                     addMessage(null, '  burn [msg]       - Send self-destruct msg');
@@ -896,6 +897,11 @@
                 case 'friends':
                     if (!ensureAuth()) return;
                     listFriends();
+                    break;
+
+                case 'friends-email':
+                    if (!ensureAuth()) return;
+                    listFriendsEmails();
                     break;
 
                 case 'chat':
@@ -1010,6 +1016,28 @@
                     div.className = 'message-line';
                     div.innerHTML = `<span class="status-dot ${dotClass}">●</span> ${displayName}`;
                     history.appendChild(div);
+                });
+                scrollToBottom();
+
+            } catch (error) {
+                addMessage('ERROR', error.message, false, false, true);
+            }
+        }
+
+        async function listFriendsEmails() {
+            addMessage('SYSTEM', 'FETCHING CONTACTS...', true);
+            try {
+                const friendsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'friends');
+                const snapshot = await getDocs(friendsRef);
+                if (snapshot.empty) {
+                    addMessage(null, 'No friends found.');
+                    return;
+                }
+                
+                snapshot.forEach(docSnap => {
+                    const f = docSnap.data();
+                    const info = f.nickname ? `NICK: ${f.nickname} | EMAIL: ${f.email}` : `EMAIL: ${f.email}`;
+                    addMessage(null, info);
                 });
                 scrollToBottom();
 
