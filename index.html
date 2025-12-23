@@ -559,15 +559,19 @@
         }
 
         function confirmSelection(selectedValue) {
-            const parts = input.value.split(' ');
+            const val = input.value;
+            // Find the last word being typed (split by space)
+            // Note: In this simple terminal, we assume cursor is at end for this logic
+            // or at least we are completing the last token.
+            const lastSpaceIdx = val.lastIndexOf(' ');
             
-            // If we are suggesting arguments (parts.length > 1), keep command
-            if (parts.length > 1) {
-                // Command + Argument
-                input.value = parts[0] + ' ' + selectedValue + ' ';
-            } else {
-                // Just Command
+            if (lastSpaceIdx === -1) {
+                // Replacing the first/only word
                 input.value = selectedValue + ' ';
+            } else {
+                // Replacing the last word, preserving prefix
+                const prefix = val.substring(0, lastSpaceIdx + 1);
+                input.value = prefix + selectedValue + ' ';
             }
             
             hideAutocomplete();
@@ -587,25 +591,25 @@
 
             // Logic to find matches
             const val = input.value;
-            const parts = val.trimStart().split(/\s+/); // Split by space
-            const currentWord = parts[parts.length - 1]; // Word currently being typed?
+            const parts = val.split(' '); // Simple tokenize by space
+            const currentWord = parts[parts.length - 1]; // Word currently being typed
             
             let matches = [];
 
-            // Case 1: Typing command (1st word)
-            if (parts.length === 1 && !val.endsWith(' ')) {
-                matches = commandsList.filter(cmd => cmd.startsWith(currentWord));
-            } 
-            // Case 2: Typing argument (2nd word or space after 1st)
-            else if (parts.length >= 1) {
+            // 1. Emoji Autocomplete (Priority if starts with '(')
+            if (currentWord.startsWith('(')) {
+                const emojiKeys = Object.keys(EMOJI_MAP);
+                matches = emojiKeys.filter(key => key.startsWith(currentWord));
+            }
+            // 2. Command Autocomplete (1st word only)
+            else if (parts.length === 1 && currentWord !== "") {
+                 matches = commandsList.filter(cmd => cmd.startsWith(currentWord));
+            }
+            // 3. Subcommand Autocomplete (2nd word only)
+            else if (parts.length === 2 && !currentWord.startsWith('(')) {
                 const cmd = parts[0];
-                const arg = (parts.length > 1) ? parts[1] : ""; 
-                
                 if (subCommands[cmd]) {
-                    // Check if we already typed space implies we are looking for args
-                    if (val.endsWith(' ') || parts.length > 1) {
-                        matches = subCommands[cmd].filter(sub => sub.startsWith(arg));
-                    }
+                    matches = subCommands[cmd].filter(sub => sub.startsWith(currentWord));
                 }
             }
 
