@@ -19,6 +19,7 @@
             --system-color: #ffaa00; 
             --chat-color: #00ccff;
             --error-color: #ff3333;
+            --radio-color: #ff33cc; /* Magenta for Radio */
         }
 
         body {
@@ -130,6 +131,7 @@
 
         .system-msg { color: var(--system-color); text-shadow: 0 0 4px var(--system-color); }
         .chat-msg { color: var(--chat-color); text-shadow: 0 0 4px var(--chat-color); }
+        .radio-msg { color: var(--radio-color); text-shadow: 0 0 4px var(--radio-color); }
         .error-msg { color: var(--error-color); text-shadow: 0 0 4px var(--error-color); }
         .user-prefix { font-weight: bold; margin-right: 0.5rem; }
 
@@ -327,7 +329,7 @@
         let currentChatPartner = null; 
         let messagesUnsubscribe = null;
         const state = {
-            mode: 'COMMAND', 
+            mode: 'COMMAND', // 'COMMAND', 'CHAT', 'RADIO'
             muted: false
         };
         
@@ -337,7 +339,7 @@
 
         // --- Autocomplete Data ---
         const commandsList = [
-            'help', 'login', 'friend', 'friends', 'friends-email', 'chat', 'reqbox',
+            'help', 'login', 'friend', 'friends', 'friends-email', 'chat', 'reqbox', 'radio',
             'burn', 'theme', 'ascii', 'mute', 'unmute', 
             'clear', 'status', 'date', 'exit', 'emoji'
         ];
@@ -474,11 +476,11 @@
 
         // --- Theme System ---
         const Themes = {
-            green: { main: '#33ff00', system: '#ffaa00', chat: '#00ccff', error: '#ff3333' },
-            amber: { main: '#ffb000', system: '#ffcc00', chat: '#ffb000', error: '#ff5500' },
-            blue:  { main: '#0088ff', system: '#00aaff', chat: '#00ffff', error: '#ff3333' },
-            white: { main: '#e0e0e0', system: '#ffffff', chat: '#cccccc', error: '#ff3333' },
-            matrix: { main: '#00ff41', system: '#008f11', chat: '#003b00', error: '#ff3333' }
+            green: { main: '#33ff00', system: '#ffaa00', chat: '#00ccff', error: '#ff3333', radio: '#ff33cc' },
+            amber: { main: '#ffb000', system: '#ffcc00', chat: '#ffb000', error: '#ff5500', radio: '#ff8800' },
+            blue:  { main: '#0088ff', system: '#00aaff', chat: '#00ffff', error: '#ff3333', radio: '#cc00ff' },
+            white: { main: '#e0e0e0', system: '#ffffff', chat: '#cccccc', error: '#ff3333', radio: '#ff00ff' },
+            matrix: { main: '#00ff41', system: '#008f11', chat: '#003b00', error: '#ff3333', radio: '#00ff00' }
         };
 
         function applyTheme(themeName) {
@@ -490,6 +492,7 @@
             r.style.setProperty('--system-color', theme.system);
             r.style.setProperty('--chat-color', theme.chat);
             r.style.setProperty('--error-color', theme.error);
+            if(theme.radio) r.style.setProperty('--radio-color', theme.radio);
             return true;
         }
 
@@ -674,9 +677,15 @@
 
         function updatePrompt(username) {
             if (state.mode === 'CHAT') {
-                promptSpan.textContent = `[CHAT:${currentChatPartner.nickname || currentChatPartner.email}] >`;
+                const name = currentChatPartner.nickname || currentChatPartner.email;
+                promptSpan.textContent = `[CHAT:${name}] >`;
+                input.style.caretColor = 'var(--chat-color)';
+            } else if (state.mode === 'RADIO') {
+                promptSpan.textContent = `[RADIO:${currentChatPartner.frequency}] >`;
+                input.style.caretColor = 'var(--radio-color)';
             } else {
                 promptSpan.textContent = `${username}@TChat:~$`;
+                input.style.caretColor = 'var(--terminal-main)';
             }
         }
 
@@ -708,11 +717,12 @@
         // Map Firestore msg ID to DOM element for deletion
         const msgMap = new Map();
 
-        function addMessage(sender, text, isSystem = false, isChat = false, isError = false, isAscii = false, msgId = null, isBurn = false) {
+        function addMessage(sender, text, isSystem = false, isChat = false, isError = false, isAscii = false, msgId = null, isBurn = false, isRadio = false) {
             const msgDiv = document.createElement('div');
             msgDiv.classList.add('message-line');
             if (isSystem) msgDiv.classList.add('system-msg');
             if (isChat) msgDiv.classList.add('chat-msg');
+            if (isRadio) msgDiv.classList.add('radio-msg');
             if (isError) msgDiv.classList.add('error-msg');
             if (isAscii) msgDiv.classList.add('ascii-art');
 
@@ -721,7 +731,7 @@
                 msgMap.set(msgId, msgDiv);
             }
 
-            if (!state.muted && (isSystem || (isChat && sender !== 'ME'))) {
+            if (!state.muted && (isSystem || (isChat && sender !== 'ME') || (isRadio && sender !== 'ME'))) {
                 setTimeout(() => SoundSys.blip(), 50);
             }
 
@@ -731,8 +741,10 @@
                 let prefixColor = 'var(--terminal-main)';
                 
                 if (isChat) {
-                    // Different color for ME vs FRIEND
                     prefixColor = (sender === 'ME') ? 'var(--terminal-main)' : 'var(--chat-color)';
+                }
+                if (isRadio) {
+                    prefixColor = (sender === 'ME') ? 'var(--terminal-main)' : 'var(--radio-color)';
                 }
                 
                 if (isSystem) prefixColor = 'var(--system-color)';
@@ -774,7 +786,7 @@
             history.appendChild(msgDiv);
             scrollToBottom();
 
-            if ((isChat && sender !== 'ME') || isSystem) {
+            if ((isChat && sender !== 'ME') || isSystem || (isRadio && sender !== 'ME')) {
                 if (!isAscii) scrambleText(contentSpan, text);
             }
 
@@ -815,7 +827,6 @@
                         confirmSelection(autocompleteOptions[autocompleteIndex]);
                         return;
                     }
-                    // If no selection, allow Enter to submit command normally, but hide menu
                     hideAutocomplete();
                 }
                 if (event.key === 'Escape') {
@@ -901,9 +912,10 @@
                     addMessage(null, '  friend nick [email] [nick] - Set nickname');
                     addMessage(null, '  friends          - List friends');
                     addMessage(null, '  friends-email    - List emails & nicknames');
-                    addMessage(null, '  reqbox           - Check for new messages from new user');
+                    addMessage(null, '  reqbox           - Check for new messages');
                     addMessage(null, '  status [mode]    - online/away/busy');
                     addMessage(null, '  chat [name/email] - Start chat');
+                    addMessage(null, '  radio [freq]     - Join broadcast freq');
                     addMessage(null, '  burn [msg]       - Send self-destruct msg');
                     addMessage(null, '  theme [color]    - Set color');
                     addMessage(null, '  ascii [url]      - Render ASCII');
@@ -1017,6 +1029,15 @@
                         startChat(args[0]);
                     } else {
                         addMessage('SYSTEM', 'USAGE: chat [name/email]', true);
+                    }
+                    break;
+
+                case 'radio':
+                    if (!ensureAuth()) return;
+                    if (args[0]) {
+                        joinRadio(args[0]);
+                    } else {
+                        addMessage('SYSTEM', 'USAGE: radio [frequency] (e.g. 101.5)', true);
                     }
                     break;
 
@@ -1220,6 +1241,48 @@
             }
         }
 
+        async function joinRadio(frequency) {
+            try {
+                currentChatPartner = { 
+                    type: 'radio', 
+                    frequency: frequency, 
+                    id: 'RADIO_' + frequency
+                };
+                
+                state.mode = 'RADIO';
+                history.innerHTML = ''; 
+                addMessage('SYSTEM', `--- TUNED TO FREQUENCY: ${frequency} MHz ---`, true);
+                addMessage('SYSTEM', `BROADCASTING OPEN. ANYONE CAN HEAR YOU.`, true);
+                updatePrompt(currentUser.email);
+
+                const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
+                // Query by conversation ID "RADIO_{freq}"
+                const qMsg = query(msgsRef, where('conversationId', '==', currentChatPartner.id), orderBy('timestamp', 'asc'));
+
+                if (messagesUnsubscribe) messagesUnsubscribe();
+
+                messagesUnsubscribe = onSnapshot(qMsg, (snapshot) => {
+                    snapshot.docChanges().forEach((change) => {
+                        if (change.type === "added") {
+                            const msg = change.doc.data();
+                            let senderName = msg.senderDisplayName || 'UNKNOWN';
+                            if (msg.senderId === currentUser.uid) senderName = 'ME';
+                            
+                            addMessage(senderName, msg.text, false, false, false, msg.isAscii || false, change.doc.id, msg.burn, true);
+                        }
+                    });
+                }, (error) => {
+                     if(error.message.includes("index")) {
+                         addMessage('ERROR', 'INDEX REQUIRED. Check console.', false, false, true);
+                         console.error(error);
+                     }
+                });
+
+            } catch (error) {
+                addMessage('ERROR', 'RADIO ERROR: ' + error.message, false, false, true);
+            }
+        }
+
         async function startChat(identifier) {
             try {
                 let friendData = null;
@@ -1345,15 +1408,25 @@
 
             finalBody = parseEmojis(finalBody);
 
-            const convoId = getConversationId(currentUser.uid, currentChatPartner.uid);
             const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
+            
+            // Determine IDs
+            let convoId, receiverId;
+            if (state.mode === 'RADIO') {
+                convoId = currentChatPartner.id; // e.g., 'RADIO_101.5'
+                receiverId = 'ALL';
+            } else {
+                convoId = getConversationId(currentUser.uid, currentChatPartner.uid);
+                receiverId = currentChatPartner.uid;
+            }
 
             try {
                 const docRef = await addDoc(msgsRef, {
                     conversationId: convoId,
                     text: finalBody,
                     senderId: currentUser.uid,
-                    receiverId: currentChatPartner.uid,
+                    senderDisplayName: currentUser.displayName || currentUser.email.split('@')[0],
+                    receiverId: receiverId,
                     burn: isBurn,
                     isAscii: isAscii,
                     timestamp: serverTimestamp()
