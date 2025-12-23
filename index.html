@@ -775,14 +775,14 @@
             if (isBurn) {
                 const burnSpan = document.createElement('span');
                 burnSpan.className = 'burn-timer';
-                burnSpan.textContent = ' [🔥 10s]';
+                burnSpan.textContent = ' [10s]';
                 msgDiv.appendChild(burnSpan);
 
                 // Local countdown visual (actual deletion handled by DB listener or sender)
                 let left = 10;
                 const timer = setInterval(() => {
                     left--;
-                    if(left >= 0) burnSpan.textContent = ` [🔥 ${left}s]`;
+                    if(left >= 0) burnSpan.textContent = ` [${left}s]`;
                     else {
                         clearInterval(timer);
                     }
