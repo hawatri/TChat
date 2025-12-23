@@ -15,6 +15,7 @@
             --bezel-color: #222;
             --system-amber: #ffaa00;
             --chat-blue: #00ccff;
+            --error-red: #ff3333;
         }
 
         body {
@@ -114,6 +115,7 @@
 
         .system-msg { color: var(--system-amber); text-shadow: 0 0 4px var(--system-amber); }
         .chat-msg { color: var(--chat-blue); text-shadow: 0 0 4px var(--chat-blue); }
+        .error-msg { color: var(--error-red); text-shadow: 0 0 4px var(--error-red); }
         .user-prefix { font-weight: bold; margin-right: 0.5rem; }
 
         .input-line {
@@ -170,12 +172,11 @@
                 <div class="message-line system-msg">BOOT_SEQUENCE_INIT...</div>
                 <div class="message-line system-msg">LOADING T-CHAT MODULES...</div>
                 <div class="message-line">Welcome to T-CHAT.</div>
-                <div class="message-line">Status: GUEST MODE (Read Only)</div>
-                <div class="message-line">Type 'login' to sign in with Google.</div>
+                <div class="message-line">Status: CONNECTING...</div>
             </div>
 
             <div class="input-line">
-                <span class="prompt" id="prompt-span">guest@terminal:~$</span>
+                <span class="prompt" id="prompt-span">...</span>
                 <input type="text" id="command-input" autocomplete="off" autofocus>
             </div>
         </div>
@@ -183,14 +184,13 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signInAnonymously, signInWithCustomToken, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, setDoc, doc, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signInAnonymously, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, setDoc, doc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Configuration ---
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'tchat-terminal';
+        const appId = 'tchat-terminal'; 
         
-        // Use environment config if available, otherwise users must fill this in
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+        const firebaseConfig = {
             apiKey: "AIzaSyCc4hgOZCeHnBgcwHk7mWMaQEbjodVLuc4",
             authDomain: "tchat-b75ee.firebaseapp.com",
             projectId: "tchat-b75ee",
@@ -204,12 +204,17 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
+        // Ensure persistence is set to LOCAL so refreshing doesn't kill the session
+        setPersistence(auth, browserLocalPersistence).catch(error => {
+            console.error("Persistence error:", error);
+        });
+
         // --- State ---
         let currentUser = null;
-        let currentChatPartner = null; // null or { uid, email, displayName }
+        let currentChatPartner = null; 
         let messagesUnsubscribe = null;
         const state = {
-            mode: 'COMMAND', // 'COMMAND' or 'CHAT'
+            mode: 'COMMAND', 
         };
 
         // --- UI References ---
@@ -219,36 +224,30 @@
         const promptSpan = document.getElementById('prompt-span');
 
         // --- Auth Logic ---
-        const initAuth = async () => {
-            // Attempt to use environment token first (for preview stability)
-            // But we allow upgrading to Google Auth via 'login' command
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                try {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } catch (e) {
-                    console.warn("Custom token failed, falling back", e);
-                    await signInAnonymously(auth);
-                }
-            } else {
-                // Default to anonymous to ensure DB connection works
-                // Real login happens via command
+        
+        // This function is only called if NO user is found after initial check
+        const initGuestAuth = async () => {
+            try {
                 await signInAnonymously(auth);
+            } catch (error) {
+                console.warn("Guest login failed:", error.code);
+                addMessage('SYSTEM', 'GUEST LOGIN FAILED. TYPE "login" TO USE GOOGLE.', true);
             }
         };
 
-        initAuth();
-
+        // We use onAuthStateChanged as the SOURCE OF TRUTH.
+        // It fires automatically on page load once Firebase restores the session (or confirms there isn't one).
         onAuthStateChanged(auth, async (user) => {
             currentUser = user;
             if (user) {
+                // User is logged in (either Google or Guest)
                 if (user.isAnonymous) {
                      updatePrompt('guest');
+                     addMessage('SYSTEM', 'GUEST MODE ACTIVE. SOME FEATURES LIMITED.', true);
                 } else {
-                    // It's a real user
                     updatePrompt(user.email.split('@')[0]);
                     addMessage('SYSTEM', `AUTHENTICATED AS ${user.email}`, true);
                     
-                    // Save public profile so others can find us
                     try {
                         const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', user.uid);
                         await setDoc(userRef, {
@@ -262,7 +261,10 @@
                     }
                 }
             } else {
-                updatePrompt('guest');
+                // User is definitely NOT logged in.
+                updatePrompt('offline');
+                // Auto-login as guest if no session exists
+                initGuestAuth();
             }
         });
 
@@ -271,9 +273,13 @@
                 addMessage('SYSTEM', 'INITIATING GOOGLE AUTH HANDSHAKE...', true);
                 const provider = new GoogleAuthProvider();
                 await signInWithPopup(auth, provider);
-                // Listener handles success message
             } catch (error) {
-                addMessage('ERROR', `LOGIN FAILED: ${error.message}. (Popups may be blocked)`, true);
+                console.error(error);
+                if (error.code === 'auth/unauthorized-domain') {
+                    addMessage('ERROR', 'DOMAIN NOT AUTHORIZED. Add this URL to Firebase Console > Auth > Settings.', false, false, true);
+                } else {
+                    addMessage('ERROR', `LOGIN FAILED: ${error.message}`, false, false, true);
+                }
             }
         };
 
@@ -288,14 +294,19 @@
             }
         }
 
-        function addMessage(sender, text, isSystem = false, isChat = false) {
+        function addMessage(sender, text, isSystem = false, isChat = false, isError = false) {
             const msgDiv = document.createElement('div');
             msgDiv.classList.add('message-line');
             if (isSystem) msgDiv.classList.add('system-msg');
             if (isChat) msgDiv.classList.add('chat-msg');
+            if (isError) msgDiv.classList.add('error-msg');
 
             if (sender) {
-                const prefixColor = isChat ? 'var(--chat-blue)' : (isSystem ? 'var(--system-amber)' : 'var(--terminal-green)');
+                let prefixColor = 'var(--terminal-green)';
+                if (isChat) prefixColor = 'var(--chat-blue)';
+                if (isSystem) prefixColor = 'var(--system-amber)';
+                if (isError) prefixColor = 'var(--error-red)';
+
                 msgDiv.innerHTML = `<span class="user-prefix" style="color:${prefixColor}">[${sender}]:</span> ${escapeHtml(text)}`;
             } else {
                 msgDiv.innerHTML = text;
@@ -323,12 +334,10 @@
             if (event.key === 'Enter') {
                 const text = input.value.trim();
                 if (text !== "") {
-                    // Echo user input if in command mode, or just send if in chat mode
                     if (state.mode === 'COMMAND') {
                         addMessage('ME', text);
                         processCommand(text);
                     } else {
-                        // Chat mode
                         processChatInput(text);
                     }
                     input.value = '';
@@ -336,7 +345,6 @@
             }
         });
 
-        // Focus handler
         document.addEventListener('click', () => input.focus());
         window.onload = () => input.focus();
 
@@ -402,7 +410,7 @@
 
         function ensureAuth() {
             if (!currentUser || currentUser.isAnonymous) {
-                addMessage('ERROR', 'ACCESS DENIED. PLEASE LOGIN FIRST.', true);
+                addMessage('ERROR', 'ACCESS DENIED. PLEASE LOGIN FIRST.', false, false, true);
                 return false;
             }
             return true;
@@ -413,19 +421,17 @@
         async function addFriend(targetEmail) {
             addMessage('SYSTEM', `SEARCHING FOR ${targetEmail}...`, true);
             try {
-                // 1. Find the user in public profiles
                 const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
                 const q = query(usersRef, where("email", "==", targetEmail));
                 const snapshot = await getDocs(q);
 
                 if (snapshot.empty) {
-                    addMessage('ERROR', 'USER NOT FOUND.', true);
+                    addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
                     return;
                 }
 
                 const targetUser = snapshot.docs[0].data();
 
-                // 2. Add to my friends list
                 const myFriendsRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'friends', targetUser.uid);
                 await setDoc(myFriendsRef, {
                     email: targetUser.email,
@@ -438,7 +444,7 @@
 
             } catch (error) {
                 console.error(error);
-                addMessage('ERROR', 'DB ERROR: ' + error.message, true);
+                addMessage('ERROR', 'DB ERROR: ' + error.message, false, false, true);
             }
         }
 
@@ -455,41 +461,37 @@
 
                 snapshot.forEach(doc => {
                     const friend = doc.data();
-                    addMessage(null, `> ${friend.email} [${friend.uid.slice(0,5)}...]`);
+                    addMessage(null, `> ${friend.email}`);
                 });
 
             } catch (error) {
-                addMessage('ERROR', error.message, true);
+                addMessage('ERROR', error.message, false, false, true);
             }
         }
 
         async function startChat(friendEmail) {
-            // Verify friend exists in my list first
             try {
                 const friendsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'friends');
                 const q = query(friendsRef, where("email", "==", friendEmail));
                 const snapshot = await getDocs(q);
 
                 if (snapshot.empty) {
-                    addMessage('ERROR', 'FRIEND NOT FOUND IN LIST. ADD THEM FIRST.', true);
+                    addMessage('ERROR', 'FRIEND NOT FOUND IN LIST. ADD THEM FIRST.', false, false, true);
                     return;
                 }
 
                 const friendData = snapshot.docs[0].data();
                 currentChatPartner = friendData;
                 
-                // Enter Chat Mode
                 state.mode = 'CHAT';
-                history.innerHTML = ''; // Clear screen for chat
+                history.innerHTML = ''; 
                 addMessage('SYSTEM', `--- SECURE CONNECTION ESTABLISHED WITH ${friendData.email} ---`, true);
                 addMessage('SYSTEM', `Type 'exit' to return to terminal.`, true);
                 updatePrompt(currentUser.email);
 
-                // Start Listener
                 const convoId = getConversationId(currentUser.uid, friendData.uid);
                 const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
                 
-                // Firestore simple query limitation: We filter by conversationId
                 const qMsg = query(
                     msgsRef, 
                     where('conversationId', '==', convoId),
@@ -500,27 +502,14 @@
                     snapshot.docChanges().forEach((change) => {
                         if (change.type === "added") {
                             const msg = change.doc.data();
-                            // Only show if it's not a local optimistic update (optional logic, skipping for simplicity)
-                            // Or better: Show incoming messages that aren't from me
-                            // But for chat history, we want to see all. 
-                            
-                            // Check if we already rendered this in the UI? 
-                            // Since we clear screen, we just render everything coming in.
-                            // But we need to distinguish sender.
                             
                             const senderName = msg.senderId === currentUser.uid ? 'ME' : friendData.email.split('@')[0];
-                            const isMe = msg.senderId === currentUser.uid;
-                            
-                            // To avoid double-rendering my own messages if I append them immediately on enter:
-                            // I will NOT append immediately on Enter in `processChatInput`, I will rely on this listener.
-                            
                             addMessage(senderName, msg.text, false, true);
                         }
                     });
                 }, (error) => {
-                     // Check if it's an index error
                      if(error.message.includes("index")) {
-                         addMessage('ERROR', 'INDEX REQUIRED. This is a new conversation type, Firestore needs an index.', true);
+                         addMessage('ERROR', 'INDEX REQUIRED. Check browser console for creation link.', false, false, true);
                          console.error(error);
                      } else {
                          console.error("Chat Error", error);
@@ -528,7 +517,7 @@
                 });
 
             } catch (error) {
-                addMessage('ERROR', 'CHAT INIT FAILED: ' + error.message, true);
+                addMessage('ERROR', 'CHAT INIT FAILED: ' + error.message, false, false, true);
             }
         }
 
@@ -544,7 +533,6 @@
                 return;
             }
 
-            // Send Message
             const convoId = getConversationId(currentUser.uid, currentChatPartner.uid);
             const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
 
@@ -556,13 +544,11 @@
                     receiverId: currentChatPartner.uid,
                     timestamp: serverTimestamp()
                 });
-                // Note: We don't addMessage here, we wait for the listener to pick it up
             } catch (e) {
-                addMessage('ERROR', 'SEND FAILED: ' + e.message, true);
+                addMessage('ERROR', 'SEND FAILED: ' + e.message, false, false, true);
             }
         }
 
-        // Helper to generate a consistent ID for two users regardless of who started chat
         function getConversationId(uid1, uid2) {
             return [uid1, uid2].sort().join('_');
         }
