@@ -1073,7 +1073,7 @@
                 // Prefer nickname in display
                 const chatName = friendData.nickname || friendData.email;
                 addMessage('SYSTEM', `--- CONNECTION ESTABLISHED: ${chatName} ---`, true);
-                addMessage('SYSTEM', `CMDS: 'burn [msg]', 'exit'`, true);
+                addMessage('SYSTEM', `CMDS: 'burn [msg]', 'ascii [url]', 'exit'`, true);
                 updatePrompt(currentUser.email);
 
                 const convoId = getConversationId(currentUser.uid, friendData.uid);
@@ -1095,7 +1095,7 @@
                                 // Use nickname if available
                                 senderName = friendData.nickname || friendData.email.split('@')[0];
                             }
-                            addMessage(senderName, msg.text, false, true, false, false, change.doc.id, msg.burn);
+                            addMessage(senderName, msg.text, false, true, false, msg.isAscii || false, change.doc.id, msg.burn);
                         }
                         // HANDLE REMOVED (Burned messages)
                         if (change.type === "removed") {
@@ -1133,13 +1133,28 @@
                 return;
             }
 
-            // Burn Command Check
             let isBurn = false;
+            let isAscii = false;
             let finalBody = text;
             
             if (lowText.startsWith('burn ')) {
                 isBurn = true;
                 finalBody = text.substring(5); // Remove 'burn '
+            }
+
+            // Check for ASCII command inside chat
+            if (finalBody.toLowerCase().startsWith('ascii ')) {
+                addMessage('SYSTEM', 'FETCHING ASCII ART...', true);
+                const url = finalBody.substring(6).trim();
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error("Network error");
+                    finalBody = await response.text();
+                    isAscii = true;
+                } catch (e) {
+                    addMessage('ERROR', 'FAILED TO FETCH ASCII: ' + e.message, false, false, true);
+                    return;
+                }
             }
 
             const convoId = getConversationId(currentUser.uid, currentChatPartner.uid);
@@ -1152,6 +1167,7 @@
                     senderId: currentUser.uid,
                     receiverId: currentChatPartner.uid,
                     burn: isBurn,
+                    isAscii: isAscii,
                     timestamp: serverTimestamp()
                 });
 
