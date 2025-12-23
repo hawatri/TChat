@@ -207,6 +207,42 @@
             animation: none;
         }
 
+        /* --- Autocomplete Drop-Up Menu --- */
+        #autocomplete-menu {
+            position: absolute;
+            bottom: 120%; /* Pushes it above the input line */
+            left: 0;
+            min-width: 200px;
+            max-height: 250px;
+            background-color: var(--terminal-bg);
+            border: 1px solid var(--terminal-main);
+            box-shadow: 0 0 10px rgba(0,0,0,0.8);
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            overflow-y: auto;
+            z-index: 100;
+        }
+        
+        /* Custom scrollbar for menu */
+        #autocomplete-menu::-webkit-scrollbar { width: 5px; }
+        #autocomplete-menu::-webkit-scrollbar-track { background: #000; }
+        #autocomplete-menu::-webkit-scrollbar-thumb { background-color: var(--terminal-main); }
+
+        .suggestion-item {
+            padding: 5px 10px;
+            color: var(--terminal-main);
+            cursor: pointer;
+            font-family: 'VT323', monospace;
+            font-size: 1.3rem;
+            border-bottom: 1px dotted rgba(51, 255, 0, 0.2);
+        }
+
+        .suggestion-item.selected, .suggestion-item:hover {
+            background-color: var(--terminal-main);
+            color: var(--terminal-bg);
+        }
+        /* -------------------------------- */
+
         @keyframes flicker {
             0% { opacity: 0.97; } 50% { opacity: 0.99; } 100% { opacity: 0.94; }
         }
@@ -250,6 +286,9 @@
             <div class="input-line">
                 <span class="prompt" id="prompt-span">...</span>
                 <div class="cmd-wrapper">
+                    <!-- Autocomplete Menu -->
+                    <div id="autocomplete-menu"></div>
+                    
                     <input type="text" id="command-input" autocomplete="off" autofocus>
                     <div id="cmd-display">
                         <span id="cmd-before"></span><span id="cmd-cursor">&nbsp;</span><span id="cmd-after"></span>
@@ -295,6 +334,22 @@
         // --- Command History ---
         const cmdHistory = [];
         let historyIndex = -1;
+
+        // --- Autocomplete Data ---
+        const commandsList = [
+            'help', 'login', 'friend', 'friends', 'chat', 
+            'burn', 'theme', 'ascii', 'mute', 'unmute', 
+            'clear', 'status', 'date', 'exit'
+        ];
+
+        const subCommands = {
+            'theme': ['green', 'amber', 'blue', 'white', 'matrix'],
+            'status': ['online', 'away', 'busy'],
+            'friend': ['add']
+        };
+
+        let autocompleteOptions = [];
+        let autocompleteIndex = -1;
 
         // --- Sound System ---
         const SoundSys = {
@@ -353,6 +408,7 @@
         const cmdBefore = document.getElementById('cmd-before');
         const cmdCursor = document.getElementById('cmd-cursor');
         const cmdAfter = document.getElementById('cmd-after');
+        const autocompleteMenu = document.getElementById('autocomplete-menu');
 
         function updateInputDisplay() {
             const val = input.value;
@@ -369,6 +425,105 @@
         ['input', 'click', 'focus', 'blur'].forEach(evt => {
             input.addEventListener(evt, () => requestAnimationFrame(updateInputDisplay));
         });
+
+        // --- Autocomplete Logic ---
+        function showAutocompleteMenu(options) {
+            autocompleteMenu.innerHTML = '';
+            autocompleteOptions = options;
+            autocompleteIndex = -1;
+
+            if (options.length === 0) {
+                autocompleteMenu.style.display = 'none';
+                return;
+            }
+
+            options.forEach((opt, index) => {
+                const div = document.createElement('div');
+                div.className = 'suggestion-item';
+                div.textContent = opt;
+                div.onclick = () => confirmSelection(opt);
+                autocompleteMenu.appendChild(div);
+            });
+
+            autocompleteMenu.style.display = 'flex';
+        }
+
+        function hideAutocomplete() {
+            autocompleteMenu.style.display = 'none';
+            autocompleteOptions = [];
+            autocompleteIndex = -1;
+        }
+
+        function highlightOption(index) {
+            const items = autocompleteMenu.children;
+            for (let i = 0; i < items.length; i++) {
+                items[i].classList.remove('selected');
+            }
+            if (index >= 0 && index < items.length) {
+                items[index].classList.add('selected');
+                items[index].scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        function confirmSelection(selectedValue) {
+            const parts = input.value.split(' ');
+            
+            // If we are suggesting arguments (parts.length > 1), keep command
+            if (parts.length > 1) {
+                // Command + Argument
+                input.value = parts[0] + ' ' + selectedValue + ' ';
+            } else {
+                // Just Command
+                input.value = selectedValue + ' ';
+            }
+            
+            hideAutocomplete();
+            updateInputDisplay();
+            input.focus();
+        }
+
+        function handleTabCompletion(e) {
+            e.preventDefault();
+
+            // If menu is open, cycle through it
+            if (autocompleteMenu.style.display === 'flex') {
+                autocompleteIndex = (autocompleteIndex + 1) % autocompleteOptions.length;
+                highlightOption(autocompleteIndex);
+                return;
+            }
+
+            // Logic to find matches
+            const val = input.value;
+            const parts = val.trimStart().split(/\s+/); // Split by space
+            const currentWord = parts[parts.length - 1]; // Word currently being typed?
+            
+            let matches = [];
+
+            // Case 1: Typing command (1st word)
+            if (parts.length === 1 && !val.endsWith(' ')) {
+                matches = commandsList.filter(cmd => cmd.startsWith(currentWord));
+            } 
+            // Case 2: Typing argument (2nd word or space after 1st)
+            else if (parts.length >= 1) {
+                const cmd = parts[0];
+                const arg = (parts.length > 1) ? parts[1] : ""; 
+                
+                if (subCommands[cmd]) {
+                    // Check if we already typed space implies we are looking for args
+                    if (val.endsWith(' ') || parts.length > 1) {
+                        matches = subCommands[cmd].filter(sub => sub.startsWith(arg));
+                    }
+                }
+            }
+
+            if (matches.length === 1) {
+                // Exact match, just fill it
+                confirmSelection(matches[0]);
+            } else if (matches.length > 1) {
+                // Multiple matches, show menu
+                showAutocompleteMenu(matches);
+            }
+        }
 
         // --- Auth & Presence ---
         const initGuestAuth = async () => {
@@ -540,31 +695,74 @@
         input.addEventListener('keydown', function(event) {
             SoundSys.init();
             
-            if (event.key === 'ArrowUp') {
-                event.preventDefault();
-                if (cmdHistory.length > 0) {
-                    if (historyIndex < cmdHistory.length - 1) {
-                        historyIndex++;
-                        input.value = cmdHistory[cmdHistory.length - 1 - historyIndex];
-                        updateInputDisplay();
-                    }
-                }
-                return;
-            }
-            if (event.key === 'ArrowDown') {
-                event.preventDefault();
-                if (historyIndex > 0) {
-                    historyIndex--;
-                    input.value = cmdHistory[cmdHistory.length - 1 - historyIndex];
-                } else if (historyIndex === 0) {
-                    historyIndex = -1;
-                    input.value = '';
-                }
-                updateInputDisplay();
-                return;
+            // --- Autocomplete Handling ---
+            if (event.key === 'Tab') {
+                handleTabCompletion(event);
+                return; // Stop other processing
             }
 
-            if (!['Enter', 'Shift', 'Control', 'Alt', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+            // If menu is open, handle navigation keys specially
+            if (autocompleteMenu.style.display === 'flex') {
+                if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    autocompleteIndex = (autocompleteIndex - 1 + autocompleteOptions.length) % autocompleteOptions.length;
+                    highlightOption(autocompleteIndex);
+                    return;
+                }
+                if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    autocompleteIndex = (autocompleteIndex + 1) % autocompleteOptions.length;
+                    highlightOption(autocompleteIndex);
+                    return;
+                }
+                if (event.key === 'Enter') {
+                    if (autocompleteIndex >= 0) {
+                        event.preventDefault();
+                        confirmSelection(autocompleteOptions[autocompleteIndex]);
+                        return;
+                    }
+                    // If no selection, allow Enter to submit command normally, but hide menu
+                    hideAutocomplete();
+                }
+                if (event.key === 'Escape') {
+                    hideAutocomplete();
+                    return;
+                }
+            } else {
+                // --- Normal History Navigation (only if menu closed) ---
+                if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    if (cmdHistory.length > 0) {
+                        if (historyIndex < cmdHistory.length - 1) {
+                            historyIndex++;
+                            input.value = cmdHistory[cmdHistory.length - 1 - historyIndex];
+                            updateInputDisplay();
+                        }
+                    }
+                    return;
+                }
+                if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    if (historyIndex > 0) {
+                        historyIndex--;
+                        input.value = cmdHistory[cmdHistory.length - 1 - historyIndex];
+                    } else if (historyIndex === 0) {
+                        historyIndex = -1;
+                        input.value = '';
+                    }
+                    updateInputDisplay();
+                    return;
+                }
+            }
+
+            // --- Hiding menu on typing (reset) ---
+            // If user types normal keys, we might want to hide menu or refine search?
+            // For simple retro style, let's hide menu if they type non-nav keys so they can re-tab
+            if (event.key.length === 1 || event.key === 'Backspace') {
+                 if (event.key !== 'Tab') hideAutocomplete();
+            }
+
+            if (!['Enter', 'Shift', 'Control', 'Alt', 'ArrowUp', 'ArrowDown', 'Tab'].includes(event.key)) {
                 SoundSys.click();
             }
 
@@ -589,7 +787,14 @@
             requestAnimationFrame(updateInputDisplay);
         });
 
-        document.addEventListener('click', () => { input.focus(); SoundSys.init(); });
+        document.addEventListener('click', (e) => { 
+            input.focus(); 
+            SoundSys.init();
+            // Close autocomplete if clicking outside
+            if (e.target !== autocompleteMenu && e.target.parentElement !== autocompleteMenu) {
+                hideAutocomplete();
+            }
+        });
         window.onload = () => input.focus();
 
         async function processCommand(rawCmd) {
@@ -629,11 +834,6 @@
 
                 case 'burn':
                     if (state.mode === 'CHAT') {
-                        // If already in chat, burn is just a modifier for chat input
-                        // But typically commands aren't typed in chat mode except 'exit'.
-                        // Here we allow 'burn' command in main terminal to send to...? 
-                        // Actually 'burn' works best inside a chat. 
-                        // But processCommand only runs in COMMAND mode.
                         addMessage('ERROR', 'ENTER A CHAT ROOM TO USE BURN.', false, false, true);
                     } else {
                         addMessage('ERROR', 'ENTER A CHAT ROOM TO USE BURN.', false, false, true);
@@ -709,6 +909,11 @@
 
                 case 'date':
                     addMessage('SYSTEM', new Date().toString(), true);
+                    break;
+
+                case 'exit':
+                    // Just clear the prompt or something?
+                    // Usually handled in processChatInput
                     break;
 
                 default:
