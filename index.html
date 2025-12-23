@@ -741,7 +741,12 @@
 
             if (sender) {
                 let prefixColor = 'var(--terminal-main)';
-                if (isChat) prefixColor = 'var(--chat-color)';
+                
+                if (isChat) {
+                    // Different color for ME vs FRIEND
+                    prefixColor = (sender === 'ME') ? 'var(--terminal-main)' : 'var(--chat-color)';
+                }
+                
                 if (isSystem) prefixColor = 'var(--system-color)';
                 if (isError) prefixColor = 'var(--error-color)';
                 
