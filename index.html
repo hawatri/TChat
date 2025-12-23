@@ -15,7 +15,7 @@
             --terminal-bg: #0a0a0a;
             --bezel-color: #222;
             
-            /* Secondary colors (will be overridden by monochrome themes) */
+            /* Secondary colors */
             --system-color: #ffaa00; 
             --chat-color: #00ccff;
             --error-color: #ff3333;
@@ -114,7 +114,8 @@
             opacity: 0;
             animation: fadeIn 0.1s forwards;
             max-width: 90%;
-            white-space: pre-wrap; /* Allows whitespace for simple ASCII */
+            white-space: pre-wrap; 
+            transition: opacity 0.5s ease-out; /* For burn effect fade out */
         }
 
         .ascii-art {
@@ -132,6 +133,15 @@
         .error-msg { color: var(--error-color); text-shadow: 0 0 4px var(--error-color); }
         .user-prefix { font-weight: bold; margin-right: 0.5rem; }
 
+        /* Status Indicators */
+        .status-dot { display: inline-block; margin-right: 8px; font-size: 1.2rem; }
+        .status-online { color: var(--terminal-main); text-shadow: 0 0 5px var(--terminal-main); }
+        .status-away { color: var(--system-color); text-shadow: 0 0 5px var(--system-color); }
+        .status-busy { color: var(--error-color); text-shadow: 0 0 5px var(--error-color); }
+
+        /* Burn Timer */
+        .burn-timer { color: var(--error-color); margin-left: 10px; font-size: 0.8em; font-weight: bold; }
+
         .input-line {
             display: flex;
             align-items: center;
@@ -144,7 +154,6 @@
 
         .prompt { margin-right: 15px; font-weight: bold; }
 
-        /* Custom Input Wrapper */
         .cmd-wrapper {
             position: relative;
             flex-grow: 1;
@@ -153,7 +162,6 @@
             height: 1.5rem;
         }
 
-        /* The real input is hidden but captures events */
         #command-input {
             position: absolute;
             top: 0;
@@ -171,7 +179,6 @@
             color: transparent;
         }
 
-        /* The visual text display */
         #cmd-display {
             font-family: 'VT323', monospace;
             font-size: 1.5rem;
@@ -184,21 +191,19 @@
             overflow: hidden;
         }
 
-        /* The Block Cursor */
         #cmd-cursor {
             background-color: var(--terminal-main);
-            color: var(--terminal-bg); /* Inverse text color inside cursor */
+            color: var(--terminal-bg);
             animation: blink 1s step-end infinite;
-            min-width: 1ch; /* Exactly one character width */
+            min-width: 1ch;
             display: inline-block;
             text-align: center;
         }
 
-        /* Stop blinking when focus lost */
         .input-line:not(:focus-within) #cmd-cursor {
             background-color: transparent;
             color: var(--terminal-main);
-            border: 1px solid var(--terminal-main); /* Hollow box */
+            border: 1px solid var(--terminal-main);
             animation: none;
         }
 
@@ -257,7 +262,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signInAnonymously, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, setDoc, doc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, setDoc, doc, getDocs, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Configuration ---
         const appId = 'tchat-terminal'; 
@@ -315,12 +320,8 @@
                 osc.start();
                 osc.stop(this.ctx.currentTime + duration);
             },
-            click: function() {
-                this.playTone(800, 'square', 0.05, 0.05);
-            },
-            blip: function() {
-                this.playTone(1200, 'sine', 0.15, 0.1);
-            }
+            click: function() { this.playTone(800, 'square', 0.05, 0.05); },
+            blip: function() { this.playTone(1200, 'sine', 0.15, 0.1); }
         };
 
         // --- Theme System ---
@@ -369,10 +370,22 @@
             input.addEventListener(evt, () => requestAnimationFrame(updateInputDisplay));
         });
 
-        // --- Auth Logic ---
+        // --- Auth & Presence ---
         const initGuestAuth = async () => {
             try { await signInAnonymously(auth); } 
             catch (e) { console.warn("Guest login failed:", e.code); }
+        };
+
+        const updateStatus = async (status) => {
+            if (!currentUser || currentUser.isAnonymous) return;
+            try {
+                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', currentUser.uid);
+                await setDoc(userRef, {
+                    status: status,
+                    lastSeen: serverTimestamp()
+                }, { merge: true });
+                return true;
+            } catch(e) { console.error(e); return false; }
         };
 
         onAuthStateChanged(auth, async (user) => {
@@ -384,12 +397,17 @@
                 } else {
                     updatePrompt(user.email.split('@')[0]);
                     addMessage('SYSTEM', `AUTHENTICATED AS ${user.email}`, true);
+                    // Initial Status Set
+                    await updateStatus('online');
+                    
+                    // Profile Init
                     try {
                         const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', user.uid);
                         await setDoc(userRef, {
                             email: user.email,
                             displayName: user.displayName || user.email.split('@')[0],
                             uid: user.uid,
+                            status: 'online',
                             lastSeen: serverTimestamp()
                         }, { merge: true });
                     } catch (e) {}
@@ -422,16 +440,15 @@
             }
         }
 
-        // --- Encryption Effect Helper ---
+        // --- Effects ---
         function scrambleText(element, finalValidText) {
             const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()";
             let iterations = 0;
-            const maxIterations = 10; // How long to scramble
             const originalText = finalValidText;
             
             const interval = setInterval(() => {
                 element.innerText = originalText.split('').map((char, index) => {
-                    if (char === ' ' || char === '\n') return char; // Preserve spaces
+                    if (char === ' ' || char === '\n') return char; 
                     if (index < iterations) return originalText[index];
                     return chars[Math.floor(Math.random() * chars.length)];
                 }).join('');
@@ -440,19 +457,25 @@
                     clearInterval(interval);
                     element.innerText = originalText;
                 }
-                
-                // For long text, resolve faster; for short, resolve slower relative to length
                 iterations += 1 + Math.floor(originalText.length / 30); 
             }, 50);
         }
 
-        function addMessage(sender, text, isSystem = false, isChat = false, isError = false, isAscii = false) {
+        // Map Firestore msg ID to DOM element for deletion
+        const msgMap = new Map();
+
+        function addMessage(sender, text, isSystem = false, isChat = false, isError = false, isAscii = false, msgId = null, isBurn = false) {
             const msgDiv = document.createElement('div');
             msgDiv.classList.add('message-line');
             if (isSystem) msgDiv.classList.add('system-msg');
             if (isChat) msgDiv.classList.add('chat-msg');
             if (isError) msgDiv.classList.add('error-msg');
             if (isAscii) msgDiv.classList.add('ascii-art');
+
+            if (msgId) {
+                msgDiv.setAttribute('data-msg-id', msgId);
+                msgMap.set(msgId, msgDiv);
+            }
 
             if (!state.muted && (isSystem || (isChat && sender !== 'ME'))) {
                 setTimeout(() => SoundSys.blip(), 50);
@@ -473,28 +496,40 @@
                 msgDiv.appendChild(prefixSpan);
             }
 
-            // Only escape HTML if NOT ascii (Ascii might be pre-formatted or handled safely via textContent)
-            // Actually, safe bet is always textContent to avoid XSS, but we need scrambling
             if (isAscii) {
                 contentSpan.textContent = text;
             } else {
                 contentSpan.textContent = text; 
-                // We use textContent instead of innerHTML for safety, 
-                // but the CSS 'white-space: pre-wrap' handles formatting.
             }
 
             msgDiv.appendChild(contentSpan);
+
+            // Burn Logic Visuals
+            if (isBurn) {
+                const burnSpan = document.createElement('span');
+                burnSpan.className = 'burn-timer';
+                burnSpan.textContent = ' [🔥 10s]';
+                msgDiv.appendChild(burnSpan);
+
+                // Local countdown visual (actual deletion handled by DB listener or sender)
+                let left = 10;
+                const timer = setInterval(() => {
+                    left--;
+                    if(left >= 0) burnSpan.textContent = ` [🔥 ${left}s]`;
+                    else {
+                        clearInterval(timer);
+                    }
+                }, 1000);
+            }
+
             history.appendChild(msgDiv);
             scrollToBottom();
 
-            // Apply Encryption Effect if it's an incoming chat message or system message
-            // Don't scramble own messages ('ME') or Error messages
             if ((isChat && sender !== 'ME') || isSystem) {
-                // Don't scramble ASCII art, it looks messy
-                if (!isAscii) {
-                    scrambleText(contentSpan, text);
-                }
+                if (!isAscii) scrambleText(contentSpan, text);
             }
+
+            return msgDiv;
         }
 
         function scrollToBottom() {
@@ -505,7 +540,6 @@
         input.addEventListener('keydown', function(event) {
             SoundSys.init();
             
-            // --- History Navigation ---
             if (event.key === 'ArrowUp') {
                 event.preventDefault();
                 if (cmdHistory.length > 0) {
@@ -529,18 +563,16 @@
                 updateInputDisplay();
                 return;
             }
-            // --------------------------
 
             if (!['Enter', 'Shift', 'Control', 'Alt', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
                 SoundSys.click();
             }
 
             if (event.key === 'Enter') {
-                const text = input.value; // Don't trim immediately to preserve ascii paste start? actually trim is usually good for cmds
+                const text = input.value; 
                 const trimmed = text.trim();
                 
                 if (trimmed !== "") {
-                    // Add to History
                     cmdHistory.push(trimmed);
                     historyIndex = -1;
 
@@ -554,8 +586,6 @@
                     updateInputDisplay();
                 }
             }
-            
-            // Sync display on keypress
             requestAnimationFrame(updateInputDisplay);
         });
 
@@ -572,16 +602,42 @@
                     addMessage('SYSTEM', 'COMMANDS:', true);
                     addMessage(null, '  login            - Sign in with Google');
                     addMessage(null, '  friend add [email] - Add a friend');
-                    addMessage(null, '  friends          - List friends');
+                    addMessage(null, '  friends          - List friends & status');
+                    addMessage(null, '  status [mode]    - online/away/busy');
                     addMessage(null, '  chat [email]     - Start chat');
-                    addMessage(null, '  theme [color]    - Set terminal color');
-                    addMessage(null, '  ascii [url]      - Render ASCII from URL');
+                    addMessage(null, '  burn [msg]       - Send self-destruct msg');
+                    addMessage(null, '  theme [color]    - Set color');
+                    addMessage(null, '  ascii [url]      - Render ASCII');
                     addMessage(null, '  mute / unmute    - Toggle sounds');
                     addMessage(null, '  clear            - Clear screen');
                     break;
 
                 case 'clear':
                     history.innerHTML = '';
+                    break;
+
+                case 'status':
+                    if (!ensureAuth()) return;
+                    const validStatuses = ['online', 'away', 'busy'];
+                    if (args[0] && validStatuses.includes(args[0])) {
+                        await updateStatus(args[0]);
+                        addMessage('SYSTEM', `STATUS SET TO: ${args[0].toUpperCase()}`, true);
+                    } else {
+                        addMessage('SYSTEM', 'USAGE: status [online | away | busy]', true);
+                    }
+                    break;
+
+                case 'burn':
+                    if (state.mode === 'CHAT') {
+                        // If already in chat, burn is just a modifier for chat input
+                        // But typically commands aren't typed in chat mode except 'exit'.
+                        // Here we allow 'burn' command in main terminal to send to...? 
+                        // Actually 'burn' works best inside a chat. 
+                        // But processCommand only runs in COMMAND mode.
+                        addMessage('ERROR', 'ENTER A CHAT ROOM TO USE BURN.', false, false, true);
+                    } else {
+                        addMessage('ERROR', 'ENTER A CHAT ROOM TO USE BURN.', false, false, true);
+                    }
                     break;
 
                 case 'mute':
@@ -601,34 +657,20 @@
                         addMessage('SYSTEM', `FETCHING ASCII FROM ${args[0]}...`, true);
                         try {
                             const response = await fetch(args[0]);
-                            if (!response.ok) throw new Error("Network response was not ok");
+                            if (!response.ok) throw new Error("Network error");
                             const text = await response.text();
-                            addMessage(null, text, false, false, false, true); // true for isAscii
+                            addMessage(null, text, false, false, false, true);
                         } catch (e) {
-                            addMessage('ERROR', `FAILED TO FETCH ASCII: ${e.message}. (CORS may block this URL)`, false, false, true);
+                            addMessage('ERROR', `FAILED: ${e.message}`, false, false, true);
                         }
                     } else {
                         addMessage('SYSTEM', 'USAGE: ascii [url]', true);
-                        // Bonus: Show a built-in one
-                         const skull = `
-      _______
-    .'_/_|_\\_'.
-    \\      /
-     |  ?  ?  |
-     |   <    |
-     |  ___  |
-     '._____.'`;
-                        addMessage(null, skull, false, false, false, true);
                     }
                     break;
 
                 case 'theme':
-                    if (args[0]) {
-                        if (applyTheme(args[0])) {
-                            addMessage('SYSTEM', `THEME SET TO ${args[0].toUpperCase()}`, true);
-                        } else {
-                            addMessage('ERROR', 'UNKNOWN THEME.', false, false, true);
-                        }
+                    if (args[0] && applyTheme(args[0])) {
+                        addMessage('SYSTEM', `THEME SET TO ${args[0].toUpperCase()}`, true);
                     } else {
                         addMessage('SYSTEM', 'USAGE: theme [green|amber|blue|white|matrix]', true);
                     }
@@ -676,7 +718,7 @@
 
         function ensureAuth() {
             if (!currentUser || currentUser.isAnonymous) {
-                addMessage('ERROR', 'ACCESS DENIED. PLEASE LOGIN FIRST.', false, false, true);
+                addMessage('ERROR', 'ACCESS DENIED. LOGIN REQUIRED.', false, false, true);
                 return false;
             }
             return true;
@@ -685,7 +727,7 @@
         // --- Feature Implementation ---
 
         async function addFriend(targetEmail) {
-            addMessage('SYSTEM', `SEARCHING FOR ${targetEmail}...`, true);
+            addMessage('SYSTEM', `SEARCHING...`, true);
             try {
                 const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
                 const q = query(usersRef, where("email", "==", targetEmail));
@@ -703,25 +745,48 @@
                     displayName: targetUser.displayName,
                     addedAt: serverTimestamp()
                 });
-                addMessage('SYSTEM', `USER ${targetUser.email} ADDED TO FRIENDS.`, true);
+                addMessage('SYSTEM', `FRIEND ADDED.`, true);
             } catch (error) {
                 addMessage('ERROR', 'DB ERROR: ' + error.message, false, false, true);
             }
         }
 
         async function listFriends() {
-            addMessage('SYSTEM', 'RETRIEVING FRIEND LIST...', true);
+            addMessage('SYSTEM', 'FETCHING FRIEND LIST & STATUS...', true);
             try {
                 const friendsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'friends');
                 const snapshot = await getDocs(friendsRef);
                 if (snapshot.empty) {
-                    addMessage(null, 'No friends found. Use "friend add [email]"');
+                    addMessage(null, 'No friends found.');
                     return;
                 }
-                snapshot.forEach(doc => {
-                    const friend = doc.data();
-                    addMessage(null, `> ${friend.email}`);
+                
+                // Fetch status for each friend
+                const promises = snapshot.docs.map(async (docSnap) => {
+                    const friend = docSnap.data();
+                    const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', friend.uid);
+                    const profileSnap = await getDoc(profileRef);
+                    let status = 'offline';
+                    if (profileSnap.exists()) {
+                        status = profileSnap.data().status || 'offline';
+                    }
+                    return { ...friend, status };
                 });
+
+                const friendsWithStatus = await Promise.all(promises);
+
+                friendsWithStatus.forEach(f => {
+                    let dotClass = 'status-online'; // default
+                    if (f.status === 'away') dotClass = 'status-away';
+                    if (f.status === 'busy') dotClass = 'status-busy';
+                    
+                    const div = document.createElement('div');
+                    div.className = 'message-line';
+                    div.innerHTML = `<span class="status-dot ${dotClass}">●</span> ${f.email}`;
+                    history.appendChild(div);
+                });
+                scrollToBottom();
+
             } catch (error) {
                 addMessage('ERROR', error.message, false, false, true);
             }
@@ -734,7 +799,7 @@
                 const snapshot = await getDocs(q);
 
                 if (snapshot.empty) {
-                    addMessage('ERROR', 'FRIEND NOT FOUND IN LIST. ADD THEM FIRST.', false, false, true);
+                    addMessage('ERROR', 'FRIEND NOT FOUND. ADD FIRST.', false, false, true);
                     return;
                 }
 
@@ -743,8 +808,8 @@
                 
                 state.mode = 'CHAT';
                 history.innerHTML = ''; 
-                addMessage('SYSTEM', `--- SECURE CONNECTION ESTABLISHED WITH ${friendData.email} ---`, true);
-                addMessage('SYSTEM', `Type 'exit' to return to terminal.`, true);
+                addMessage('SYSTEM', `--- CONNECTION ESTABLISHED: ${friendData.email} ---`, true);
+                addMessage('SYSTEM', `CMDS: 'burn [msg]', 'exit'`, true);
                 updatePrompt(currentUser.email);
 
                 const convoId = getConversationId(currentUser.uid, friendData.uid);
@@ -756,49 +821,80 @@
 
                 messagesUnsubscribe = onSnapshot(qMsg, (snapshot) => {
                     snapshot.docChanges().forEach((change) => {
+                        // HANDLE ADDED
                         if (change.type === "added") {
                             const msg = change.doc.data();
                             const senderName = msg.senderId === currentUser.uid ? 'ME' : friendData.email.split('@')[0];
-                            // Apply encryption effect here by default for incoming
-                            addMessage(senderName, msg.text, false, true);
+                            addMessage(senderName, msg.text, false, true, false, false, change.doc.id, msg.burn);
+                        }
+                        // HANDLE REMOVED (Burned messages)
+                        if (change.type === "removed") {
+                            const msgId = change.doc.id;
+                            const el = msgMap.get(msgId);
+                            if (el) {
+                                el.style.opacity = '0';
+                                setTimeout(() => el.remove(), 500); // Wait for fade out
+                                msgMap.delete(msgId);
+                            }
                         }
                     });
                 }, (error) => {
                      if(error.message.includes("index")) {
-                         addMessage('ERROR', 'INDEX REQUIRED. Check browser console.', false, false, true);
+                         addMessage('ERROR', 'INDEX REQUIRED. Check console.', false, false, true);
                          console.error(error);
-                     } else {
-                         console.error("Chat Error", error);
                      }
                 });
             } catch (error) {
-                addMessage('ERROR', 'CHAT INIT FAILED: ' + error.message, false, false, true);
+                addMessage('ERROR', 'CHAT ERROR: ' + error.message, false, false, true);
             }
         }
 
         async function processChatInput(text) {
-            if (text.toLowerCase() === 'exit') {
+            const lowText = text.toLowerCase();
+            
+            if (lowText === 'exit') {
                 if (messagesUnsubscribe) messagesUnsubscribe();
                 messagesUnsubscribe = null;
                 state.mode = 'COMMAND';
                 currentChatPartner = null;
                 history.innerHTML = '';
-                addMessage('SYSTEM', 'DISCONNECTED. RETURNED TO TERMINAL.', true);
+                addMessage('SYSTEM', 'DISCONNECTED.', true);
                 updatePrompt(currentUser.email.split('@')[0]);
                 return;
+            }
+
+            // Burn Command Check
+            let isBurn = false;
+            let finalBody = text;
+            
+            if (lowText.startsWith('burn ')) {
+                isBurn = true;
+                finalBody = text.substring(5); // Remove 'burn '
             }
 
             const convoId = getConversationId(currentUser.uid, currentChatPartner.uid);
             const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
 
             try {
-                await addDoc(msgsRef, {
+                const docRef = await addDoc(msgsRef, {
                     conversationId: convoId,
-                    text: text,
+                    text: finalBody,
                     senderId: currentUser.uid,
                     receiverId: currentChatPartner.uid,
+                    burn: isBurn,
                     timestamp: serverTimestamp()
                 });
+
+                // If it's a burn message, schedule deletion from the sender side
+                if (isBurn) {
+                    setTimeout(async () => {
+                        try {
+                            await deleteDoc(docRef);
+                            // Visual removal happens via onSnapshot 'removed' event
+                        } catch(e) { console.error("Burn failed", e); }
+                    }, 10000);
+                }
+
             } catch (e) {
                 addMessage('ERROR', 'SEND FAILED: ' + e.message, false, false, true);
             }
