@@ -296,6 +296,7 @@
                 <div class="cmd-wrapper">
                     <div id="autocomplete-menu"></div>
                     <input type="text" id="command-input" autocomplete="off">
+                    <input type="file" id="file-upload" accept="image/*" style="display:none"> <!-- Added Input -->
                     <div id="cmd-display">
                         <span id="cmd-before"></span><span id="cmd-cursor">&nbsp;</span><span id="cmd-after"></span>
                     </div>
@@ -514,6 +515,7 @@
         const cmdCursor = document.getElementById('cmd-cursor');
         const cmdAfter = document.getElementById('cmd-after');
         const autocompleteMenu = document.getElementById('autocomplete-menu');
+        const fileInput = document.getElementById('file-upload'); // Ref
 
         function updateInputDisplay() {
             const val = input.value;
@@ -529,6 +531,33 @@
 
         ['input', 'click', 'focus', 'blur'].forEach(evt => {
             input.addEventListener(evt, () => requestAnimationFrame(updateInputDisplay));
+        });
+
+        // --- File Upload Handler ---
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            addMessage('SYSTEM', `PROCESSING IMAGE: ${file.name}...`, true);
+            
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    // Use existing converter
+                    const ascii = await convertImageToAscii(event.target.result);
+                    
+                    if (state.mode === 'COMMAND') {
+                        addMessage(null, ascii, false, false, false, true);
+                    } else {
+                        // In Chat/Radio mode, send directly
+                        await sendMessage(ascii, true, false); 
+                    }
+                } catch(err) {
+                    addMessage('ERROR', 'CONVERSION FAILED: ' + err.message, false, false, true);
+                }
+                fileInput.value = ''; // Reset
+            };
+            reader.readAsDataURL(file);
         });
 
         // --- Autocomplete Logic ---
@@ -1057,6 +1086,7 @@
                     addMessage(null, '  burn [msg]       - Send self-destruct msg');
                     addMessage(null, '  theme [color]    - Set color');
                     addMessage(null, '  ascii [url]      - Render ASCII (Image or Text)');
+                    addMessage(null, '                     Type "ascii" with no url to upload.'); // Updated Help
                     addMessage(null, '  emoji            - List emoji codes');
                     addMessage(null, '  mute / unmute    - Toggle sounds');
                     addMessage(null, '  clear            - Clear screen');
@@ -1113,7 +1143,8 @@
                             addMessage('ERROR', `FAILED: ${e.message}`, false, false, true);
                         }
                     } else {
-                        addMessage('SYSTEM', 'USAGE: ascii [url]', true);
+                        // No URL provided -> Trigger Upload
+                        fileInput.click();
                     }
                     break;
 
@@ -1629,6 +1660,12 @@
                 return;
             }
 
+            // Trigger upload from chat
+            if (lowText === 'ascii' || lowText === 'upload') {
+                fileInput.click();
+                return;
+            }
+
             let isBurn = false;
             let isAscii = false;
             let finalBody = text;
@@ -1652,6 +1689,10 @@
 
             finalBody = parseEmojis(finalBody);
 
+            await sendMessage(finalBody, isAscii, isBurn);
+        }
+
+        async function sendMessage(text, isAscii, isBurn) {
             const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
             
             // Determine IDs
@@ -1667,7 +1708,7 @@
             try {
                 const docRef = await addDoc(msgsRef, {
                     conversationId: convoId,
-                    text: finalBody,
+                    text: text,
                     senderId: currentUser.uid,
                     senderDisplayName: currentUser.displayName || currentUser.email.split('@')[0],
                     receiverId: receiverId,
