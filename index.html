@@ -244,6 +244,31 @@
             color: var(--terminal-bg);
         }
 
+        /* --- TAB Button Styling --- */
+        #tab-btn {
+            background: transparent;
+            border: 1px solid var(--terminal-main);
+            color: var(--terminal-main);
+            font-family: 'VT323', monospace;
+            font-size: 1.2rem;
+            padding: 0 10px;
+            height: 1.5rem;
+            margin-left: 10px;
+            cursor: pointer;
+            text-shadow: 0 0 4px var(--terminal-glow);
+            box-shadow: 0 0 4px var(--terminal-glow);
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+        }
+
+        #tab-btn:active {
+            background: var(--terminal-main);
+            color: var(--terminal-bg);
+        }
+
         @keyframes flicker {
             0% { opacity: 0.97; } 50% { opacity: 0.99; } 100% { opacity: 0.94; }
         }
@@ -278,6 +303,14 @@
             .power-led { width: 6px; height: 6px; bottom: 10px; right: 10px; }
             #autocomplete-menu { max-height: 180px; min-width: 150px; bottom: 100%; left: 0; }
             .suggestion-item { font-size: 1.2rem; padding: 8px; }
+            
+            /* Tab button adjustment for mobile */
+            #tab-btn {
+                font-size: 1rem;
+                padding: 0 6px;
+                margin-left: 6px;
+                height: 1.4rem;
+            }
         }
     </style>
 </head>
@@ -296,11 +329,13 @@
                 <div class="cmd-wrapper">
                     <div id="autocomplete-menu"></div>
                     <input type="text" id="command-input" autocomplete="off">
-                    <input type="file" id="file-upload" accept="image/*" style="display:none"> <!-- Added Input -->
+                    <input type="file" id="file-upload" accept="image/*" style="display:none">
                     <div id="cmd-display">
                         <span id="cmd-before"></span><span id="cmd-cursor">&nbsp;</span><span id="cmd-after"></span>
                     </div>
                 </div>
+                <!-- Tab Button for Android/Touch Devices -->
+                <button id="tab-btn">TAB</button>
             </div>
         </div>
     </div>
@@ -516,6 +551,7 @@
         const cmdAfter = document.getElementById('cmd-after');
         const autocompleteMenu = document.getElementById('autocomplete-menu');
         const fileInput = document.getElementById('file-upload'); // Ref
+        const tabBtn = document.getElementById('tab-btn');
 
         function updateInputDisplay() {
             const val = input.value;
@@ -531,6 +567,13 @@
 
         ['input', 'click', 'focus', 'blur'].forEach(evt => {
             input.addEventListener(evt, () => requestAnimationFrame(updateInputDisplay));
+        });
+
+        // --- Tab Button Logic ---
+        tabBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            input.focus(); // Ensure keyboard stays up
+            handleTabCompletion({ preventDefault: () => {} });
         });
 
         // --- File Upload Handler ---
@@ -1000,7 +1043,7 @@
         document.addEventListener('click', (e) => { 
             input.focus(); 
             SoundSys.init();
-            if (e.target !== autocompleteMenu && e.target.parentElement !== autocompleteMenu) {
+            if (e.target !== autocompleteMenu && e.target.parentElement !== autocompleteMenu && e.target !== tabBtn) {
                 hideAutocomplete();
             }
         });
