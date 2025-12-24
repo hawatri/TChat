@@ -335,7 +335,8 @@
         const state = {
             mode: 'COMMAND', 
             muted: false,
-            booting: true // Start in boot mode
+            booting: true, // Start in boot mode
+            theme: 'green' // Default theme
         };
         
         // --- Command History ---
@@ -346,7 +347,7 @@
         const commandsList = [
             'help', 'login', 'logout', 'friend', 'friends', 'friends-email', 'chat', 'reqbox', 'radio',
             'burn', 'theme', 'ascii', 'mute', 'unmute', 
-            'clear', 'status', 'date', 'exit', 'emoji', 'ping'
+            'clear', 'status', 'date', 'exit', 'emoji', 'ping', 'neofetch'
         ];
 
         const subCommands = {
@@ -498,6 +499,8 @@
             r.style.setProperty('--chat-color', theme.chat);
             r.style.setProperty('--error-color', theme.error);
             if(theme.radio) r.style.setProperty('--radio-color', theme.radio);
+            
+            state.theme = themeName; // Track current theme
             return true;
         }
 
@@ -1050,6 +1053,7 @@
                     addMessage(null, '  chat [name/email] - Start chat');
                     addMessage(null, '  radio [freq]     - Join broadcast freq');
                     addMessage(null, '  ping [email]     - Check user availability');
+                    addMessage(null, '  neofetch         - Display system info');
                     addMessage(null, '  burn [msg]       - Send self-destruct msg');
                     addMessage(null, '  theme [color]    - Set color');
                     addMessage(null, '  ascii [url]      - Render ASCII (Image or Text)');
@@ -1190,6 +1194,10 @@
                     addMessage('SYSTEM', new Date().toString(), true);
                     break;
 
+                case 'neofetch':
+                    runNeofetch();
+                    break;
+
                 case 'ping':
                     if (!ensureAuth()) return;
                     if (args[0]) {
@@ -1216,6 +1224,68 @@
         }
 
         // --- Feature Implementation ---
+
+        function runNeofetch() {
+            const now = performance.now();
+            const uptimeMins = Math.floor(now / 60000);
+            const uptimeSecs = Math.floor((now % 60000) / 1000);
+            
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            
+            // Simplified User Agent parsing
+            let os = 'Unknown OS';
+            if (navigator.userAgent.indexOf("Win") != -1) os = "Windows";
+            if (navigator.userAgent.indexOf("Mac") != -1) os = "MacOS";
+            if (navigator.userAgent.indexOf("Linux") != -1) os = "Linux";
+            if (navigator.userAgent.indexOf("Android") != -1) os = "Android";
+            if (navigator.userAgent.indexOf("like Mac") != -1) os = "iOS";
+
+            let browser = 'Unknown Browser';
+            if (navigator.userAgent.indexOf("Chrome") != -1) browser = "Chrome";
+            if (navigator.userAgent.indexOf("Firefox") != -1) browser = "Firefox";
+            if (navigator.userAgent.indexOf("Safari") != -1 && navigator.userAgent.indexOf("Chrome") == -1) browser = "Safari";
+
+            const user = currentUser ? (currentUser.displayName || currentUser.email.split('@')[0]) : 'guest';
+            const authStatus = currentUser && !currentUser.isAnonymous ? 'Authenticated' : 'Anonymous';
+            const email = currentUser && !currentUser.isAnonymous ? currentUser.email : 'N/A';
+
+            const logo = [
+                "   _______   ",
+                "  |__   __|  ",
+                "     | |     ",
+                "     | |     ",
+                "     | |     ",
+                "     |_|     "
+            ];
+
+            const info = [
+                `USER:    ${user}@tchat`,
+                `--------`,
+                `OS:      ${os} (Web Kernel)`,
+                `BROWSER: ${browser}`,
+                `UPTIME:  ${uptimeMins}m ${uptimeSecs}s`,
+                `RES:     ${width}x${height}`,
+                `THEME:   ${state.theme}`,
+                `STATUS:  ${authStatus}`,
+                `EMAIL:   ${email}`
+            ];
+
+            let output = "";
+            const logoWidth = 16;
+            const maxLines = Math.max(logo.length, info.length);
+            
+            for(let i=0; i<maxLines; i++) {
+                const logoLine = (logo[i] || "").padEnd(logoWidth, " ");
+                const infoLine = info[i] || "";
+                output += `${logoLine}  ${infoLine}\n`;
+            }
+
+            // Color bar at the bottom
+            output += "\n   \u001b[31m███\u001b[32m███\u001b[33m███\u001b[34m███\u001b[35m███\u001b[36m███";
+            
+            addMessage(null, output, false, false, false, true);
+        }
 
         async function pingUser(targetEmail) {
             addMessage('SYSTEM', `PINGING ${targetEmail}...`, true);
