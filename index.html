@@ -973,6 +973,64 @@
             }
         });
 
+        // --- ASCII Art Processor ---
+        async function fetchAscii(url) {
+             const lowerUrl = url.toLowerCase();
+             const isImage = /\.(jpg|jpeg|png|gif|webp)$/.test(lowerUrl);
+             
+             if (isImage) {
+                 return await convertImageToAscii(url);
+             } else {
+                 // Try fetching as text (existing behavior)
+                 const response = await fetch(url);
+                 if (!response.ok) throw new Error("Network error: " + response.status);
+                 return await response.text();
+             }
+        }
+
+        function convertImageToAscii(url) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = "Anonymous";
+                img.src = url;
+                
+                img.onload = () => {
+                    const cols = 60; // Width in characters
+                    const charAspect = 0.5; // Characters are taller than wide
+                    const aspect = img.height / img.width;
+                    const rows = Math.floor(cols * aspect * charAspect);
+                    
+                    const canvas = document.createElement('canvas');
+                    canvas.width = cols;
+                    canvas.height = rows;
+                    const ctx = canvas.getContext('2d');
+                    
+                    ctx.drawImage(img, 0, 0, cols, rows);
+                    
+                    try {
+                        const data = ctx.getImageData(0, 0, cols, rows).data;
+                        let ascii = "";
+                        const chars = " .:-=+*#%@"; // Simple gradient
+                        
+                        for (let y = 0; y < rows; y++) {
+                            for (let x = 0; x < cols; x++) {
+                                const i = (y * cols + x) * 4;
+                                const brightness = (data[i] + data[i+1] + data[i+2]) / 3;
+                                const charIdx = Math.floor((brightness / 255) * (chars.length - 1));
+                                ascii += chars[charIdx];
+                            }
+                            ascii += "\n";
+                        }
+                        resolve(ascii);
+                    } catch (e) {
+                        reject(new Error("CORS blocked image data access. Try using an image host like Imgur."));
+                    }
+                };
+                
+                img.onerror = () => reject(new Error("Failed to load image. Check URL."));
+            });
+        }
+
         async function processCommand(rawCmd) {
             const parts = rawCmd.split(' ');
             const cmd = parts[0].toLowerCase();
@@ -993,7 +1051,7 @@
                     addMessage(null, '  radio [freq]     - Join broadcast freq');
                     addMessage(null, '  burn [msg]       - Send self-destruct msg');
                     addMessage(null, '  theme [color]    - Set color');
-                    addMessage(null, '  ascii [url]      - Render ASCII');
+                    addMessage(null, '  ascii [url]      - Render ASCII (Image or Text)');
                     addMessage(null, '  emoji            - List emoji codes');
                     addMessage(null, '  mute / unmute    - Toggle sounds');
                     addMessage(null, '  clear            - Clear screen');
@@ -1044,10 +1102,8 @@
                     if (args[0]) {
                         addMessage('SYSTEM', `FETCHING ASCII FROM ${args[0]}...`, true);
                         try {
-                            const response = await fetch(args[0]);
-                            if (!response.ok) throw new Error("Network error");
-                            const text = await response.text();
-                            addMessage(null, text, false, false, false, true);
+                            const asciiArt = await fetchAscii(args[0]);
+                            addMessage(null, asciiArt, false, false, false, true);
                         } catch (e) {
                             addMessage('ERROR', `FAILED: ${e.message}`, false, false, true);
                         }
@@ -1484,9 +1540,7 @@
                 addMessage('SYSTEM', 'FETCHING ASCII ART...', true);
                 const url = finalBody.substring(6).trim();
                 try {
-                    const response = await fetch(url);
-                    if (!response.ok) throw new Error("Network error");
-                    finalBody = await response.text();
+                    finalBody = await fetchAscii(url);
                     isAscii = true;
                 } catch (e) {
                     addMessage('ERROR', 'FAILED TO FETCH ASCII: ' + e.message, false, false, true);
