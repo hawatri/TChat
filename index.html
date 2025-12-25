@@ -92,21 +92,23 @@
             flex-direction: column;
             position: relative;
             z-index: 1;
-            overflow-y: auto;
-            scrollbar-width: thin;
-            scrollbar-color: var(--terminal-main) transparent;
+            overflow: hidden; /* Changed from overflow-y: auto to lock container */
         }
 
-        .terminal-content::-webkit-scrollbar { width: 10px; }
-        .terminal-content::-webkit-scrollbar-track { background: #000; }
-        .terminal-content::-webkit-scrollbar-thumb { background-color: var(--terminal-main); border: 2px solid #000; }
+        /* Scrollbar styles moved to #chat-history */
+        #chat-history::-webkit-scrollbar { width: 10px; }
+        #chat-history::-webkit-scrollbar-track { background: #000; }
+        #chat-history::-webkit-scrollbar-thumb { background-color: var(--terminal-main); border: 2px solid #000; }
 
         #chat-history {
             flex-grow: 1;
             display: flex;
             flex-direction: column;
-            justify-content: flex-end;
+            justify-content: flex-end; /* Keeps messages at bottom when few */
             padding-bottom: 20px;
+            overflow-y: auto; /* Scroll ONLY the history */
+            min-height: 0; /* Crucial for flex nested scrolling */
+            padding-right: 10px; /* Avoid text hitting scrollbar */
         }
 
         .message-line {
@@ -118,6 +120,7 @@
             max-width: 90%;
             white-space: pre-wrap; 
             transition: opacity 0.5s ease-out;
+            flex-shrink: 0; /* Prevent squashing */
         }
 
         .ascii-art {
@@ -149,11 +152,12 @@
             border-top: 1px dashed rgba(51, 255, 0, 0.3);
             padding-top: 15px;
             padding-bottom: 5px;
-            background-color: rgba(0,0,0,0.5);
+            background-color: var(--terminal-bg); /* Opaque background */
             position: relative;
-            /* Hidden initially for boot sequence */
             opacity: 0; 
             transition: opacity 0.5s;
+            flex-shrink: 0; /* Prevent input line from shrinking */
+            z-index: 5;
         }
 
         .prompt { margin-right: 15px; font-weight: bold; }
@@ -693,8 +697,8 @@
         tabBtn.addEventListener('click', (e) => {
             e.preventDefault();
             if (state.mode === 'PROFILE_EDIT') {
-                // Simulate Tab for Editor
-                 handleProfileEditorKey('Tab');
+                // Fix: Pass an object mimicking the event
+                 handleProfileEditorKey({ key: 'Tab', preventDefault: () => {} });
             } else {
                 input.focus(); 
                 handleTabCompletion({ preventDefault: () => {} });
@@ -1097,7 +1101,7 @@
         }
 
         function scrollToBottom() {
-            container.scrollTop = container.scrollHeight;
+            history.scrollTop = history.scrollHeight;
         }
 
         // --- Command Processing ---
