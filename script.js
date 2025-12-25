@@ -818,9 +818,36 @@ async function processCommand(rawCmd) {
 
     switch (cmd) {
         case 'help':
-            addMessage('SYSTEM', 'COMMANDS:', true);
-            commandsList.forEach(c => addMessage(null, `  ${c}`));
-            break;
+                    addMessage('SYSTEM', 'COMMANDS:', true);
+                    addMessage(null, '  login            - Sign in with Google');
+                    addMessage(null, '  logout           - Sign out');
+                    addMessage(null, '  set-bio          - Open Profile Editor');
+                    addMessage(null, '  whois [email]    - View User Profile');
+                    addMessage(null, '  mentions         - Check tags/mentions');
+                    addMessage(null, '  friend add [email]     - Add friend');
+                    addMessage(null, '  friend nick [email] [nick] - Set nickname');
+                    addMessage(null, '  friends          - List friends');
+                    addMessage(null, '  friends-email    - List emails & nicknames');
+                    addMessage(null, '  reqbox           - Check for new messages');
+                    addMessage(null, '  status [mode]    - online/away/busy');
+                    addMessage(null, '  chat [name/email] - Start chat');
+                    addMessage(null, '  radio [freq]     - Join broadcast freq');
+                    addMessage(null, '  host             - Claim Radio Host (*)');
+                    addMessage(null, '  host [name]      - Add Admin (Host only)');
+                    addMessage(null, '  unhost [name]    - Remove Admin (Host only)');
+                    addMessage(null, '  kick [name]      - Ban User (Admin only)');
+                    addMessage(null, '  unkick [name]    - Unban User (Admin only)');
+                    addMessage(null, '  host-list        - Show Admins');
+                    addMessage(null, '  ping [email]     - Check user availability');
+                    addMessage(null, '  neofetch         - Display system info');
+                    addMessage(null, '  burn [msg]       - Send self-destruct msg');
+                    addMessage(null, '  theme [color]    - Set color');
+                    addMessage(null, '  ascii [url]      - Render ASCII (Image or Text)');
+                    addMessage(null, '                     Type "ascii" with no url to upload.'); // Updated Help
+                    addMessage(null, '  emoji            - List emoji codes');
+                    addMessage(null, '  mute / unmute    - Toggle sounds');
+                    addMessage(null, '  clear            - Clear screen');
+                    break;
 
         case 'clear':
             history.innerHTML = '';
