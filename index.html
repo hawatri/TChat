@@ -170,7 +170,7 @@
 
         .input-line {
             display: flex;
-            align-items: baseline; /* FIX: Aligns prompt and cursor perfectly */
+            align-items: baseline; 
             border-top: 1px dashed rgba(51, 255, 0, 0.3);
             padding-top: 15px;
             padding-bottom: 5px;
@@ -185,7 +185,7 @@
         .prompt { 
             margin-right: 15px; 
             font-weight: bold; 
-            margin-top: 0; /* FIX: Removed top margin */
+            margin-top: 0; 
             white-space: nowrap;
         }
 
@@ -244,7 +244,7 @@
             min-width: 1ch;
             display: inline-block;
             text-align: center;
-            vertical-align: baseline; /* FIX: Sit on line */
+            vertical-align: baseline; 
             line-height: 1;
         }
 
@@ -1404,8 +1404,10 @@
             addMessage('SYSTEM', 'SAVING PROFILE...', true);
             const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', currentUser.uid);
             
+            const rawNick = editNick.textContent.trim();
             const dataToUpdate = {
-                displayName: editNick.textContent.trim(),
+                displayName: rawNick,
+                displayNameLower: rawNick.toLowerCase(), // Add this for easier search later
                 bio: editBio.textContent.trim(),
             };
             
@@ -1892,19 +1894,38 @@
         // --- Radio Helper Functions ---
 
         async function resolveUserByNickOrEmail(identifier) {
-            // Try by email first
+            // Identifier can be "email" or "DisplayName"
+            // We need a robust search.
             const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
+            
+            // 1. Try by email exact match
             let q = query(usersRef, where("email", "==", identifier));
             let snapshot = await getDocs(q);
-            
             if (!snapshot.empty) return snapshot.docs[0].data();
 
-            // Try by displayName
+            // 2. Try by displayName exact match
             q = query(usersRef, where("displayName", "==", identifier));
             snapshot = await getDocs(q);
             if (!snapshot.empty) return snapshot.docs[0].data();
 
             return null;
+        }
+        
+        // Helper to send system message to current radio
+        async function sendRadioSystemMessage(text) {
+             if (state.mode !== 'RADIO' || !currentChatPartner) return;
+             const convoId = currentChatPartner.id;
+             const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
+             
+             await addDoc(msgsRef, {
+                conversationId: convoId,
+                text: text,
+                senderId: 'SYSTEM',
+                senderDisplayName: 'SYSTEM',
+                receiverId: 'ALL',
+                timestamp: serverTimestamp(),
+                isSystem: true
+             });
         }
 
         async function claimRadioHost() {
@@ -1934,7 +1955,10 @@
                         createdAt: serverTimestamp(),
                         frequency: frequency
                     }, { merge: true });
+                    
+                    const name = currentUser.displayName || currentUser.email;
                     addMessage('SYSTEM', 'SUCCESS. YOU ARE NOW THE SUPER ADMIN (*).', true);
+                    await sendRadioSystemMessage(`[SYSTEM] ${name} has claimed the HOST position for this frequency.`);
                 }
             } catch (e) {
                 addMessage('ERROR', 'CLAIM FAILED: ' + e.message, false, false, true);
@@ -1950,7 +1974,7 @@
 
             const targetUser = await resolveUserByNickOrEmail(targetName);
             if (!targetUser) {
-                addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
+                addMessage('ERROR', 'USER NOT FOUND. Try exact DisplayName or Email.', false, false, true);
                 return;
             }
 
@@ -1958,7 +1982,9 @@
             await updateDoc(channelRef, {
                 admins: arrayUnion(targetUser.uid)
             });
-            addMessage('SYSTEM', `PROMOTED ${targetName} TO ADMIN.`, true);
+            
+            const name = targetUser.displayName || targetUser.email;
+            await sendRadioSystemMessage(`[SYSTEM] ${name} was promoted to ADMIN.`);
         }
 
         async function demoteUser(targetName) {
@@ -1973,12 +1999,19 @@
                 addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
                 return;
             }
+            
+            if (targetUser.uid === currentUser.uid) {
+                 addMessage('ERROR', 'CANNOT DEMOTE SELF. USE "exit" OR JUST LEAVE.', false, false, true);
+                 return;
+            }
 
             const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', currentChatPartner.frequency);
             await updateDoc(channelRef, {
                 admins: arrayRemove(targetUser.uid)
             });
-            addMessage('SYSTEM', `REMOVED ADMIN STATUS FROM ${targetName}.`, true);
+            
+            const name = targetUser.displayName || targetUser.email;
+            await sendRadioSystemMessage(`[SYSTEM] ${name} is no longer an Admin.`);
         }
 
         async function kickUser(targetName) {
@@ -1994,11 +2027,18 @@
                 return;
             }
 
+            if (currentChannelAdmins.includes(targetUser.uid)) {
+                addMessage('ERROR', 'CANNOT KICK FELLOW ADMIN. DEMOTE FIRST.', false, false, true);
+                return;
+            }
+
             const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', currentChatPartner.frequency);
             await updateDoc(channelRef, {
                 banned: arrayUnion(targetUser.uid)
             });
-            addMessage('SYSTEM', `KICKED AND BANNED ${targetName}.`, true);
+            
+            const name = targetUser.displayName || targetUser.email;
+            await sendRadioSystemMessage(`[SYSTEM] ${name} has been KICKED and BANNED.`);
         }
 
         async function unkickUser(targetName) {
@@ -2018,7 +2058,9 @@
             await updateDoc(channelRef, {
                 banned: arrayRemove(targetUser.uid)
             });
-            addMessage('SYSTEM', `UNBANNED ${targetName}.`, true);
+            
+            const name = targetUser.displayName || targetUser.email;
+            await sendRadioSystemMessage(`[SYSTEM] ${name} has been UNBANNED.`);
         }
 
         async function showRadioHost() {
@@ -2438,7 +2480,7 @@
                 });
 
                 const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
-                // Query by conversation ID "RADIO_{freq}"
+                // Query by conversationId
                 const qMsg = query(msgsRef, where('conversationId', '==', currentChatPartner.id), orderBy('timestamp', 'asc'));
 
                 if (messagesUnsubscribe) messagesUnsubscribe();
@@ -2448,6 +2490,12 @@
                         if (change.type === "added") {
                             const msg = change.doc.data();
                             
+                            // Check for Special System Messages
+                            if (msg.isSystem) {
+                                addMessage('SYSTEM', msg.text, true, false, false, false, change.doc.id);
+                                return;
+                            }
+
                             // Track participant for autocomplete
                             if (msg.senderDisplayName) {
                                 activeRadioParticipants.add(msg.senderDisplayName);
