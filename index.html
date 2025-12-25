@@ -152,7 +152,7 @@
 
         .input-line {
             display: flex;
-            align-items: flex-start; /* Aligns prompt to top when text wraps */
+            align-items: baseline; /* FIX: Aligns prompt and cursor perfectly */
             border-top: 1px dashed rgba(51, 255, 0, 0.3);
             padding-top: 15px;
             padding-bottom: 5px;
@@ -167,8 +167,8 @@
         .prompt { 
             margin-right: 15px; 
             font-weight: bold; 
+            margin-top: 0; /* FIX: Removed top margin */
             white-space: nowrap;
-            line-height: 1.5rem; /* Match input line-height */
         }
 
         .cmd-wrapper {
@@ -226,7 +226,7 @@
             min-width: 1ch;
             display: inline-block;
             text-align: center;
-            vertical-align: text-bottom;
+            vertical-align: baseline; /* FIX: Sit on line */
             line-height: 1;
         }
 
@@ -682,6 +682,8 @@
             r.style.setProperty('--chat-color', theme.chat);
             r.style.setProperty('--error-color', theme.error);
             if(theme.radio) r.style.setProperty('--radio-color', theme.radio);
+            
+            state.theme = themeName; // Track current theme
             return true;
         }
 
@@ -2045,6 +2047,28 @@
                 addMessage('SYSTEM', `BROADCASTING OPEN. ANYONE CAN HEAR YOU.`, true);
                 updatePrompt(currentUser.email);
 
+                // --- HOST/ADMIN LOGIC ---
+                const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
+                const channelSnap = await getDoc(channelRef);
+
+                if (!channelSnap.exists()) {
+                    // No host yet, create channel and assign host
+                    await setDoc(channelRef, {
+                        hostId: currentUser.uid,
+                        createdAt: serverTimestamp()
+                    });
+                    currentChatPartner.hostId = currentUser.uid;
+                    addMessage('SYSTEM', 'YOU ARE THE HOST (*) OF THIS FREQUENCY.', true);
+                } else {
+                    // Channel exists, get host ID
+                    const data = channelSnap.data();
+                    currentChatPartner.hostId = data.hostId;
+                    if (data.hostId === currentUser.uid) {
+                        addMessage('SYSTEM', 'WELCOME BACK, HOST (*).', true);
+                    }
+                }
+                // -----------------------
+
                 const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
                 // Query by conversation ID "RADIO_{freq}"
                 const qMsg = query(msgsRef, where('conversationId', '==', currentChatPartner.id), orderBy('timestamp', 'asc'));
@@ -2057,6 +2081,11 @@
                             const msg = change.doc.data();
                             let senderName = msg.senderDisplayName || 'UNKNOWN';
                             if (msg.senderId === currentUser.uid) senderName = 'ME';
+                            
+                            // Check for host flag
+                            if (msg.isHost) {
+                                senderName += ' (*)';
+                            }
                             
                             addMessage(senderName, msg.text, false, false, false, msg.isAscii || false, change.doc.id, msg.burn, true);
                         }
@@ -2220,7 +2249,7 @@
             }
 
             try {
-                const docRef = await addDoc(msgsRef, {
+                const payload = {
                     conversationId: convoId,
                     text: text,
                     senderId: currentUser.uid,
@@ -2229,7 +2258,14 @@
                     burn: isBurn,
                     isAscii: isAscii,
                     timestamp: serverTimestamp()
-                });
+                };
+
+                // Add isHost flag if in radio mode and user is host
+                if (state.mode === 'RADIO' && currentChatPartner.hostId === currentUser.uid) {
+                    payload.isHost = true;
+                }
+
+                const docRef = await addDoc(msgsRef, payload);
 
                 if (isBurn) {
                     setTimeout(async () => {
