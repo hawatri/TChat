@@ -1812,19 +1812,22 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
         async function processChatInput(text) {
             const lowText = text.toLowerCase();
+            const parts = text.split(' ');
+            const cmd = parts[0].toLowerCase();
             
-            if (lowText === 'exit') {
-                if (messagesUnsubscribe) messagesUnsubscribe();
-                if (channelMetaUnsubscribe) channelMetaUnsubscribe();
-                messagesUnsubscribe = null;
-                channelMetaUnsubscribe = null;
-                state.mode = 'COMMAND';
-                currentChatPartner = null;
-                history.innerHTML = '';
-                addMessage('SYSTEM', 'DISCONNECTED.', true);
-                updatePrompt(currentUser.email.split('@')[0]);
-                return;
+            // --- 1. INTERCEPT COMMANDS IN CHAT MODE ---
+            const radioCommands = ['host', 'host-list', 'kick', 'unkick', 'unhost', 'help', 'clear', 'exit'];
+            
+            if (radioCommands.includes(cmd)) {
+                // If it's a command, route it to processCommand instead of chatting it
+                if (cmd !== 'exit') {
+                    // Show a local echo so user knows it ran (optional, but good for UX)
+                    addMessage('ME', text); 
+                }
+                await processCommand(text);
+                return; // STOP here. Do not send as message.
             }
+            // ------------------------------------------
 
             // Trigger upload from chat
             if (lowText === 'ascii' || lowText === 'upload') {
