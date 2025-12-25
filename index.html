@@ -856,6 +856,21 @@
 
         function confirmSelection(selectedValue) {
             const val = input.value;
+            
+            // Special handling for @(Mention) to support spaces
+            if (selectedValue.startsWith('@(')) {
+                // Find the last occurrence of '@(' to replace
+                const lastAtParen = val.lastIndexOf('@(');
+                if (lastAtParen !== -1) {
+                    const prefix = val.substring(0, lastAtParen);
+                    input.value = prefix + selectedValue + ' ';
+                    hideAutocomplete();
+                    updateInputDisplay();
+                    input.focus();
+                    return;
+                }
+            }
+
             const lastSpaceIdx = val.lastIndexOf(' ');
             
             if (lastSpaceIdx === -1) {
@@ -880,29 +895,36 @@
             }
 
             const val = input.value;
-            const parts = val.split(' '); 
-            const currentWord = parts[parts.length - 1]; 
-            
             let matches = [];
 
-            if (currentWord.startsWith('(')) {
-                const emojiKeys = Object.keys(EMOJI_MAP);
-                matches = emojiKeys.filter(key => key.startsWith(currentWord));
-            }
-            else if (currentWord.startsWith('@') && state.mode === 'RADIO') {
-                const term = currentWord.substring(1).toLowerCase();
+            // 1. Check for Mention: @(...)
+            // Matches "@(" at end, or "@(some text" at end
+            const mentionMatch = val.match(/@\(([^\)]*)$/);
+            
+            if (mentionMatch && state.mode === 'RADIO') {
+                const term = mentionMatch[1].toLowerCase(); // text inside ( )
                 const participants = Array.from(activeRadioParticipants);
                 matches = participants
                     .filter(name => name.toLowerCase().startsWith(term))
-                    .map(name => '@' + name);
+                    .map(name => `@(${name})`);
             }
-            else if (parts.length === 1 && currentWord !== "") {
-                 matches = commandsList.filter(cmd => cmd.startsWith(currentWord));
-            }
-            else if (parts.length === 2 && !currentWord.startsWith('(')) {
-                const cmd = parts[0];
-                if (subCommands[cmd]) {
-                    matches = subCommands[cmd].filter(sub => sub.startsWith(currentWord));
+            else {
+                // Standard command/emoji completion based on space splitting
+                const parts = val.split(' '); 
+                const currentWord = parts[parts.length - 1]; 
+
+                if (currentWord.startsWith('(')) {
+                    const emojiKeys = Object.keys(EMOJI_MAP);
+                    matches = emojiKeys.filter(key => key.startsWith(currentWord));
+                }
+                else if (parts.length === 1 && currentWord !== "") {
+                     matches = commandsList.filter(cmd => cmd.startsWith(currentWord));
+                }
+                else if (parts.length === 2 && !currentWord.startsWith('(')) {
+                    const cmd = parts[0];
+                    if (subCommands[cmd]) {
+                        matches = subCommands[cmd].filter(sub => sub.startsWith(currentWord));
+                    }
                 }
             }
 
@@ -1175,12 +1197,12 @@
                 msgDiv.appendChild(prefixSpan);
             }
 
-            // Highlight Mentions
+            // Highlight Mentions @(Name)
             if (!isAscii && text) {
                 // Escape HTML basic
                 let html = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                // Regex for @mention
-                html = html.replace(/(@\w+)/g, '<span class="highlight-mention">$1</span>');
+                // Regex for @(mention)
+                html = html.replace(/@\((.*?)\)/g, '<span class="highlight-mention">@($1)</span>');
                 contentSpan.innerHTML = html;
             } else {
                 contentSpan.textContent = text; 
@@ -2371,15 +2393,13 @@
 
             try {
                 // --- MENTION PARSING ---
-                // Scan for @name. Only works if we can find the user.
-                // For simplicity in this env, we try to resolve names from the activeRadioParticipants cache 
-                // OR query public profiles for matching display name
+                // Scan for @(name). Only works if we can find the user.
                 
-                // Regex to find @mentions
-                const mentionMatches = text.match(/@\w+/g);
+                // Regex to find @(mentions)
+                const mentionMatches = text.match(/@\((.*?)\)/g);
                 if (mentionMatches && mentionMatches.length > 0) {
                     mentionMatches.forEach(async (mention) => {
-                        const targetName = mention.substring(1); // remove @
+                        const targetName = mention.substring(2, mention.length - 1); // remove @( and )
                         
                         // Query user by displayName
                         const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
