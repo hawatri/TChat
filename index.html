@@ -1192,6 +1192,7 @@
                 }
             } else {
                 if (event.key === 'ArrowUp') {
+                    if (event.shiftKey) return; // Allow Shift+Up to navigate text
                     event.preventDefault();
                     if (cmdHistory.length > 0) {
                         if (historyIndex < cmdHistory.length - 1) {
@@ -1203,6 +1204,7 @@
                     return;
                 }
                 if (event.key === 'ArrowDown') {
+                    if (event.shiftKey) return; // Allow Shift+Down to navigate text
                     event.preventDefault();
                     if (historyIndex > 0) {
                         historyIndex--;
