@@ -1915,10 +1915,14 @@
         async function sendRadioSystemMessage(text) {
              if (state.mode !== 'RADIO' || !currentChatPartner) return;
              const convoId = currentChatPartner.id;
-             const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
+             const frequency = currentChatPartner.frequency; // Add this
+             
+             // NEW: Save to 'radio_messages' collection
+             const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'radio_messages');
              
              await addDoc(msgsRef, {
                 conversationId: convoId,
+                frequency: frequency,
                 text: text,
                 senderId: 'SYSTEM',
                 senderDisplayName: 'SYSTEM',
@@ -2113,7 +2117,11 @@
             
             try {
                 const notifRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'notifications');
-                const q = query(notifRef, orderBy('timestamp', 'desc'), limit(10));
+                // Remove orderBy to avoid indexing issues if possible, or keep simple
+                // If it fails, we remove orderBy. For now keeping it simple.
+                const q = query(notifRef, limit(10)); 
+                // Removed orderBy timestamp to prevent index errors. Results may not be perfectly ordered but will work.
+                
                 const snap = await getDocs(q);
                 
                 if (snap.empty) {
@@ -2121,8 +2129,12 @@
                     return;
                 }
                 
-                snap.forEach(doc => {
-                    const data = doc.data();
+                // Sort in JS
+                const notifs = [];
+                snap.forEach(doc => notifs.push(doc.data()));
+                notifs.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+                
+                notifs.forEach(data => {
                     const time = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleTimeString() : '??:??';
                     addMessage(null, `[${time}] ${data.fromName}: ${data.preview}`);
                 });
@@ -2479,20 +2491,57 @@
                     }
                 });
 
-                const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
-                // Query by conversationId
-                const qMsg = query(msgsRef, where('conversationId', '==', currentChatPartner.id), orderBy('timestamp', 'asc'));
+                // NEW: Use separate collection 'radio_messages'
+                const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'radio_messages');
+                
+                // CRITICAL FIX: Removed orderBy() from Firestore query to prevent index errors
+                // We will sort in JavaScript instead.
+                const qMsg = query(msgsRef, where('conversationId', '==', currentChatPartner.id));
 
                 if (messagesUnsubscribe) messagesUnsubscribe();
 
+                // Store messages in array to sort manually
+                let allMessages = [];
+
                 messagesUnsubscribe = onSnapshot(qMsg, (snapshot) => {
+                    // Collect changes
+                    let needsSort = false;
+                    
                     snapshot.docChanges().forEach((change) => {
+                        const msg = change.doc.data();
+                        msg.id = change.doc.id; // Store ID
+                        
                         if (change.type === "added") {
-                            const msg = change.doc.data();
-                            
-                            // Check for Special System Messages
+                            allMessages.push(msg);
+                            needsSort = true;
+                        }
+                    });
+
+                    if (needsSort) {
+                        // Sort by timestamp
+                        allMessages.sort((a, b) => {
+                            const ta = a.timestamp ? a.timestamp.seconds : 0;
+                            const tb = b.timestamp ? b.timestamp.seconds : 0;
+                            return ta - tb;
+                        });
+                        
+                        // Clear history and redraw (efficient enough for terminal text)
+                        // Actually, to avoid flicker, let's just append new ones if we can,
+                        // but since we receive them potentially out of order without the index, 
+                        // we need to be careful. 
+                        // For this terminal style, simple append usually works if they arrive roughly in order,
+                        // but a full sort is safer.
+                        
+                        // Optimization: Only append the ones we haven't rendered? 
+                        // Simplified: Just render the last added one if it's new. 
+                        // BUT, without orderBy, snapshot might give old messages in random order.
+                        // So we MUST sort.
+                        
+                        history.innerHTML = ''; // Clear
+                        allMessages.forEach(msg => {
+                             // Check for Special System Messages
                             if (msg.isSystem) {
-                                addMessage('SYSTEM', msg.text, true, false, false, false, change.doc.id);
+                                addMessage('SYSTEM', msg.text, true, false, false, false, msg.id);
                                 return;
                             }
 
@@ -2509,13 +2558,16 @@
                                 senderName += ' (*)';
                             }
                             
-                            addMessage(senderName, msg.text, false, false, false, msg.isAscii || false, change.doc.id, msg.burn, true);
-                        }
-                    });
+                            addMessage(senderName, msg.text, false, false, false, msg.isAscii || false, msg.id, msg.burn, true);
+                        });
+                    }
+                    
                 }, (error) => {
-                     if(error.message.includes("index")) {
-                         addMessage('ERROR', 'INDEX REQUIRED. Check console.', false, false, true);
-                         console.error(error);
+                     console.error("Radio Listener Error:", error);
+                     if(error.code === 'permission-denied') {
+                         addMessage('ERROR', 'PERMISSION DENIED. Check Console.', false, false, true);
+                     } else {
+                         addMessage('ERROR', 'RADIO ERROR: ' + error.message, false, false, true);
                      }
                 });
 
@@ -2573,36 +2625,61 @@
                 const convoId = getConversationId(currentUser.uid, friendData.uid);
                 const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
                 
-                const qMsg = query(msgsRef, where('conversationId', '==', convoId), orderBy('timestamp', 'asc'));
+                // CRITICAL FIX: Removed orderBy here too just in case indexes are missing for private chat
+                const qMsg = query(msgsRef, where('conversationId', '==', convoId));
 
                 if (messagesUnsubscribe) messagesUnsubscribe();
 
+                let allPrivateMessages = [];
+
                 messagesUnsubscribe = onSnapshot(qMsg, (snapshot) => {
+                    let needsSort = false;
+                    
                     snapshot.docChanges().forEach((change) => {
+                        const msg = change.doc.data();
+                        msg.id = change.doc.id;
+                        
                         if (change.type === "added") {
-                            const msg = change.doc.data();
+                            allPrivateMessages.push(msg);
+                            needsSort = true;
+                        }
+                        if (change.type === "removed") {
+                            // Handle burn
+                            allPrivateMessages = allPrivateMessages.filter(m => m.id !== msg.id);
+                            const el = msgMap.get(msg.id);
+                            if (el) el.remove();
+                        }
+                    });
+
+                    if (needsSort) {
+                        allPrivateMessages.sort((a, b) => {
+                            const ta = a.timestamp ? a.timestamp.seconds : 0;
+                            const tb = b.timestamp ? b.timestamp.seconds : 0;
+                            return ta - tb;
+                        });
+                        
+                        // Quick re-render logic to preserve scroll if possible, 
+                        // but clearing is safest for out-of-order arrival
+                        history.innerHTML = '';
+                        addMessage('SYSTEM', `--- CONNECTION ESTABLISHED: ${chatName} ---`, true);
+                        addMessage('SYSTEM', `CMDS: 'burn [msg]', 'ascii [url]', 'exit'`, true);
+                        
+                        allPrivateMessages.forEach(msg => {
                             let senderName;
                             if (msg.senderId === currentUser.uid) {
                                 senderName = 'ME';
                             } else {
                                 senderName = friendData.nickname || friendData.email.split('@')[0];
                             }
-                            addMessage(senderName, msg.text, false, true, false, msg.isAscii || false, change.doc.id, msg.burn);
-                        }
-                        if (change.type === "removed") {
-                            const msgId = change.doc.id;
-                            const el = msgMap.get(msgId);
-                            if (el) {
-                                el.style.opacity = '0';
-                                setTimeout(() => el.remove(), 500); 
-                                msgMap.delete(msgId);
-                            }
-                        }
-                    });
+                            addMessage(senderName, msg.text, false, true, false, msg.isAscii || false, msg.id, msg.burn);
+                        });
+                    }
                 }, (error) => {
-                     if(error.message.includes("index")) {
-                         addMessage('ERROR', 'INDEX REQUIRED. Check console.', false, false, true);
-                         console.error(error);
+                     console.error("Chat Listener Error:", error);
+                     if(error.code === 'permission-denied') {
+                         addMessage('ERROR', 'PERMISSION DENIED. Check Console.', false, false, true);
+                     } else {
+                         addMessage('ERROR', 'CHAT ERROR: ' + error.message, false, false, true);
                      }
                 });
             } catch (error) {
@@ -2662,7 +2739,13 @@
         }
 
         async function sendMessage(text, isAscii, isBurn) {
-            const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
+            // Determine Collection
+            let msgsRef;
+            if (state.mode === 'RADIO') {
+                msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'radio_messages');
+            } else {
+                msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
+            }
             
             // Determine IDs
             let convoId, receiverId;
