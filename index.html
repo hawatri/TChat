@@ -2416,34 +2416,6 @@
                 if (channelMetaUnsubscribe) channelMetaUnsubscribe();
                 const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
                 
-                // First, get the initial state of the channel
-                try {
-                    const channelSnap = await getDoc(channelRef);
-                    if (channelSnap.exists()) {
-                        const data = channelSnap.data();
-                        currentChannelAdmins = data.admins || [];
-                        
-                        // Check if banned
-                        if (data.banned && data.banned.includes(currentUser.uid)) {
-                            // Leave channel
-                            if (messagesUnsubscribe) messagesUnsubscribe();
-                            if (channelMetaUnsubscribe) channelMetaUnsubscribe();
-                            state.mode = 'COMMAND';
-                            history.innerHTML = '';
-                            addMessage('ERROR', 'CONNECTION TERMINATED. FREQUENCY BLOCKED.', false, false, true);
-                            updatePrompt(currentUser.email.split('@')[0]);
-                            return;
-                        }
-                    } else {
-                        currentChannelAdmins = [];
-                    }
-                } catch (error) {
-                    // If we can't read the channel metadata, start with empty admin list
-                    // This can happen if the channel doesn't exist yet or due to permission issues
-                    currentChannelAdmins = [];
-                    console.warn('Could not fetch initial channel metadata:', error.message);
-                }
-                
                 channelMetaUnsubscribe = onSnapshot(channelRef, (docSnap) => {
                     if (docSnap.exists()) {
                         const data = docSnap.data();
