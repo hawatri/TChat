@@ -507,26 +507,25 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signInAnonymously, setPersistence, browserLocalPersistence, signOut, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signInAnonymously, setPersistence, browserLocalPersistence, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, setDoc, doc, getDocs, getDoc, deleteDoc, limit, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Configuration ---
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const appId = 'tchat-terminal'; 
+        
+        const firebaseConfig = {
+            apiKey: "AIzaSyCc4hgOZCeHnBgcwHk7mWMaQEbjodVLuc4",
+            authDomain: "tchat-b75ee.firebaseapp.com",
+            projectId: "tchat-b75ee",
+            storageBucket: "tchat-b75ee.firebasestorage.app",
+            messagingSenderId: "602448689642",
+            appId: "1:602448689642:web:435a9f48ea2e80debeda93",
+            measurementId: "G-T7P87XTZ15"
+        };
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-
-        // --- Initial Auth Check ---
-        const initAuth = async () => {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-                await signInAnonymously(auth);
-            }
-        };
-        initAuth();
 
         setPersistence(auth, browserLocalPersistence).catch(console.error);
 
@@ -1013,6 +1012,11 @@
             addMessage('SYSTEM', 'SYSTEM READY. AWAITING INPUT...', true);
         }
 
+        const initGuestAuth = async () => {
+            try { await signInAnonymously(auth); } 
+            catch (e) { console.warn("Guest login failed:", e.code); }
+        };
+
         const updateStatus = async (status) => {
             if (!currentUser || currentUser.isAnonymous) return;
             try {
@@ -1032,8 +1036,7 @@
             if (notificationUnsubscribe) notificationUnsubscribe();
             
             const notifRef = collection(db, 'artifacts', appId, 'users', uid, 'notifications');
-            // FIX: Removed complex query (orderBy+limit) for compatibility
-            const q = query(notifRef);
+            const q = query(notifRef, orderBy('timestamp', 'desc'), limit(1));
             
             notificationUnsubscribe = onSnapshot(q, (snapshot) => {
                 snapshot.docChanges().forEach((change) => {
@@ -1045,8 +1048,6 @@
                         }
                     }
                 });
-            }, (error) => {
-                console.error("Notif Error:", error);
             });
         }
 
@@ -1095,6 +1096,7 @@
                 }
             } else {
                 updatePrompt('offline');
+                initGuestAuth();
                 if (notificationUnsubscribe) notificationUnsubscribe();
             }
         });
@@ -2229,8 +2231,7 @@
 
                 const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
                 // Query by conversation ID "RADIO_{freq}"
-                // FIX: Removed orderBy for compatibility
-                const qMsg = query(msgsRef, where('conversationId', '==', currentChatPartner.id));
+                const qMsg = query(msgsRef, where('conversationId', '==', currentChatPartner.id), orderBy('timestamp', 'asc'));
 
                 if (messagesUnsubscribe) messagesUnsubscribe();
 
@@ -2316,8 +2317,7 @@
                 const convoId = getConversationId(currentUser.uid, friendData.uid);
                 const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
                 
-                // FIX: Removed orderBy for compatibility
-                const qMsg = query(msgsRef, where('conversationId', '==', convoId));
+                const qMsg = query(msgsRef, where('conversationId', '==', convoId), orderBy('timestamp', 'asc'));
 
                 if (messagesUnsubscribe) messagesUnsubscribe();
 
