@@ -80,6 +80,17 @@
             z-index: 10;
         }
 
+        /* Flash Animation for Notifications */
+        @keyframes screen-flash {
+            0% { background-color: transparent; }
+            50% { background-color: rgba(255, 51, 51, 0.3); }
+            100% { background-color: transparent; }
+        }
+
+        .notification-flash {
+            animation: screen-flash 0.5s ease-in-out;
+        }
+
         .terminal-content {
             height: 100%;
             width: 100%;
@@ -125,6 +136,13 @@
             white-space: pre-wrap; 
             transition: opacity 0.5s ease-out;
             flex-shrink: 0; 
+        }
+
+        .highlight-mention {
+            background-color: var(--terminal-main);
+            color: var(--terminal-bg);
+            padding: 0 4px;
+            font-weight: bold;
         }
 
         .ascii-art {
@@ -434,7 +452,7 @@
 </head>
 <body>
     <div class="crt-container">
-        <div class="crt-overlay"></div>
+        <div class="crt-overlay" id="crt-overlay"></div>
         <div class="bezel-overlay"></div>
         <div class="power-led"></div>
         <div class="brand-logo"></div>
@@ -490,7 +508,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signInAnonymously, setPersistence, browserLocalPersistence, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, setDoc, doc, getDocs, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, setDoc, doc, getDocs, getDoc, deleteDoc, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Configuration ---
         const appId = 'tchat-terminal'; 
@@ -515,6 +533,9 @@
         let currentUser = null;
         let currentChatPartner = null; 
         let messagesUnsubscribe = null;
+        let notificationUnsubscribe = null;
+        let activeRadioParticipants = new Set(); // Stores display names for radio autocomplete
+
         const state = {
             mode: 'COMMAND', // COMMAND, CHAT, RADIO, PROFILE_EDIT
             muted: false,
@@ -530,7 +551,7 @@
         const commandsList = [
             'help', 'login', 'logout', 'friend', 'friends', 'friends-email', 'chat', 'reqbox', 'radio',
             'burn', 'theme', 'ascii', 'mute', 'unmute', 
-            'clear', 'status', 'date', 'exit', 'emoji', 'ping', 'neofetch', 'set-bio', 'whois'
+            'clear', 'status', 'date', 'exit', 'emoji', 'ping', 'neofetch', 'set-bio', 'whois', 'mentions'
         ];
 
         const subCommands = {
@@ -660,7 +681,11 @@
                 osc.stop(this.ctx.currentTime + duration);
             },
             click: function() { this.playTone(800, 'square', 0.05, 0.05); },
-            blip: function() { this.playTone(1200, 'sine', 0.15, 0.1); }
+            blip: function() { this.playTone(1200, 'sine', 0.15, 0.1); },
+            alert: function() { 
+                this.playTone(1500, 'square', 0.1, 0.2); 
+                setTimeout(() => this.playTone(1500, 'square', 0.1, 0.2), 150);
+            }
         };
 
         // --- Theme System ---
@@ -700,6 +725,7 @@
         const fileInput = document.getElementById('file-upload'); 
         const tabBtn = document.getElementById('tab-btn');
         const editorOverlay = document.getElementById('profile-editor-overlay');
+        const crtOverlay = document.getElementById('crt-overlay');
 
         // Editor Refs
         const editNick = document.getElementById('edit-nick');
@@ -863,6 +889,13 @@
                 const emojiKeys = Object.keys(EMOJI_MAP);
                 matches = emojiKeys.filter(key => key.startsWith(currentWord));
             }
+            else if (currentWord.startsWith('@') && state.mode === 'RADIO') {
+                const term = currentWord.substring(1).toLowerCase();
+                const participants = Array.from(activeRadioParticipants);
+                matches = participants
+                    .filter(name => name.toLowerCase().startsWith(term))
+                    .map(name => '@' + name);
+            }
             else if (parts.length === 1 && currentWord !== "") {
                  matches = commandsList.filter(cmd => cmd.startsWith(currentWord));
             }
@@ -973,6 +1006,36 @@
             } catch(e) { console.error(e); return false; }
         };
 
+        // --- Notification Listener ---
+        function setupNotificationListener(uid) {
+            if (notificationUnsubscribe) notificationUnsubscribe();
+            
+            const notifRef = collection(db, 'artifacts', appId, 'users', uid, 'notifications');
+            const q = query(notifRef, orderBy('timestamp', 'desc'), limit(1));
+            
+            notificationUnsubscribe = onSnapshot(q, (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === "added") {
+                        const notif = change.doc.data();
+                        // Only alert if recent (within last 30 seconds) to avoid spam on load
+                        if (notif.timestamp && (Date.now() - notif.timestamp.toMillis()) < 30000) {
+                            triggerNotificationEffect(notif);
+                        }
+                    }
+                });
+            });
+        }
+
+        function triggerNotificationEffect(notif) {
+            SoundSys.alert();
+            
+            // Screen Flash
+            crtOverlay.classList.add('notification-flash');
+            setTimeout(() => crtOverlay.classList.remove('notification-flash'), 500);
+            
+            addMessage('ALERT', `MENTIONED BY [${notif.fromName}]: "${notif.preview}"`, true);
+        }
+
         onAuthStateChanged(auth, async (user) => {
             currentUser = user;
             if (user) {
@@ -985,6 +1048,8 @@
                     if (!state.booting) addMessage('SYSTEM', `AUTHENTICATED AS ${user.email}`, true);
                     
                     await updateStatus('online');
+                    setupNotificationListener(user.uid);
+
                     try {
                         const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', user.uid);
                         // Ensure basic profile exists
@@ -1007,6 +1072,7 @@
             } else {
                 updatePrompt('offline');
                 initGuestAuth();
+                if (notificationUnsubscribe) notificationUnsubscribe();
             }
         });
 
@@ -1109,8 +1175,13 @@
                 msgDiv.appendChild(prefixSpan);
             }
 
-            if (isAscii) {
-                contentSpan.textContent = text;
+            // Highlight Mentions
+            if (!isAscii && text) {
+                // Escape HTML basic
+                let html = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                // Regex for @mention
+                html = html.replace(/(@\w+)/g, '<span class="highlight-mention">$1</span>');
+                contentSpan.innerHTML = html;
             } else {
                 contentSpan.textContent = text; 
             }
@@ -1532,6 +1603,7 @@
                     addMessage(null, '  logout           - Sign out');
                     addMessage(null, '  set-bio          - Open Profile Editor');
                     addMessage(null, '  whois [email]    - View User Profile');
+                    addMessage(null, '  mentions         - Check tags/mentions');
                     addMessage(null, '  friend add [email]     - Add friend');
                     addMessage(null, '  friend nick [email] [nick] - Set nickname');
                     addMessage(null, '  friends          - List friends');
@@ -1566,6 +1638,10 @@
                         // If no arg, show self
                         await runWhois(currentUser.email);
                     }
+                    break;
+
+                case 'mentions':
+                    await showRecentMentions();
                     break;
 
                 case 'emoji':
@@ -1727,6 +1803,31 @@
         }
 
         // --- Feature Implementation ---
+
+        async function showRecentMentions() {
+            if (!ensureAuth()) return;
+            addMessage('SYSTEM', 'FETCHING RECENT MENTIONS...', true);
+            
+            try {
+                const notifRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'notifications');
+                const q = query(notifRef, orderBy('timestamp', 'desc'), limit(10));
+                const snap = await getDocs(q);
+                
+                if (snap.empty) {
+                    addMessage(null, 'NO RECENT MENTIONS FOUND.');
+                    return;
+                }
+                
+                snap.forEach(doc => {
+                    const data = doc.data();
+                    const time = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleTimeString() : '??:??';
+                    addMessage(null, `[${time}] ${data.fromName}: ${data.preview}`);
+                });
+                
+            } catch(e) {
+                addMessage('ERROR', 'FAILED: ' + e.message, false, false, true);
+            }
+        }
 
         async function runWhois(identifier) {
             addMessage('SYSTEM', `QUERYING DIRECTORY FOR: ${identifier}...`, true);
@@ -2043,29 +2144,43 @@
                 
                 state.mode = 'RADIO';
                 history.innerHTML = ''; 
+                activeRadioParticipants.clear(); // Reset participants
                 addMessage('SYSTEM', `--- TUNED TO FREQUENCY: ${frequency} MHz ---`, true);
                 addMessage('SYSTEM', `BROADCASTING OPEN. ANYONE CAN HEAR YOU.`, true);
                 updatePrompt(currentUser.email);
 
-                // --- HOST/ADMIN LOGIC ---
-                const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
-                const channelSnap = await getDoc(channelRef);
-
-                if (!channelSnap.exists()) {
-                    // No host yet, create channel and assign host
-                    await setDoc(channelRef, {
-                        hostId: currentUser.uid,
-                        createdAt: serverTimestamp()
+                // --- HOST/ADMIN LOGIC (Graceful Fallback) ---
+                try {
+                    const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
+                    const channelSnap = await getDoc(channelRef).catch(e => {
+                        console.warn("Could not fetch channel info:", e);
+                        return null;
                     });
-                    currentChatPartner.hostId = currentUser.uid;
-                    addMessage('SYSTEM', 'YOU ARE THE HOST (*) OF THIS FREQUENCY.', true);
-                } else {
-                    // Channel exists, get host ID
-                    const data = channelSnap.data();
-                    currentChatPartner.hostId = data.hostId;
-                    if (data.hostId === currentUser.uid) {
-                        addMessage('SYSTEM', 'WELCOME BACK, HOST (*).', true);
+
+                    if (channelSnap && !channelSnap.exists()) {
+                        // No host yet, create channel and assign host
+                        await setDoc(channelRef, {
+                            hostId: currentUser.uid,
+                            createdAt: serverTimestamp(),
+                            frequency: frequency
+                        }).catch(e => {
+                            console.warn("Failed to claim host:", e);
+                            throw e; // Throw to trigger local fallback
+                        });
+                        
+                        currentChatPartner.hostId = currentUser.uid;
+                        addMessage('SYSTEM', 'YOU ARE THE HOST (*) OF THIS FREQUENCY.', true);
+                    } else if (channelSnap && channelSnap.exists()) {
+                        // Channel exists, get host ID
+                        const data = channelSnap.data();
+                        currentChatPartner.hostId = data.hostId;
+                        if (data.hostId === currentUser.uid) {
+                            addMessage('SYSTEM', 'WELCOME BACK, HOST (*).', true);
+                        }
                     }
+                } catch (hostErr) {
+                    // Fail silently so user can still chat
+                    console.log("Host functionality unavailable:", hostErr.message);
                 }
                 // -----------------------
 
@@ -2079,6 +2194,12 @@
                     snapshot.docChanges().forEach((change) => {
                         if (change.type === "added") {
                             const msg = change.doc.data();
+                            
+                            // Track participant for autocomplete
+                            if (msg.senderDisplayName) {
+                                activeRadioParticipants.add(msg.senderDisplayName);
+                            }
+
                             let senderName = msg.senderDisplayName || 'UNKNOWN';
                             if (msg.senderId === currentUser.uid) senderName = 'ME';
                             
@@ -2249,6 +2370,40 @@
             }
 
             try {
+                // --- MENTION PARSING ---
+                // Scan for @name. Only works if we can find the user.
+                // For simplicity in this env, we try to resolve names from the activeRadioParticipants cache 
+                // OR query public profiles for matching display name
+                
+                // Regex to find @mentions
+                const mentionMatches = text.match(/@\w+/g);
+                if (mentionMatches && mentionMatches.length > 0) {
+                    mentionMatches.forEach(async (mention) => {
+                        const targetName = mention.substring(1); // remove @
+                        
+                        // Query user by displayName
+                        const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
+                        const q = query(usersRef, where("displayName", "==", targetName));
+                        const snap = await getDocs(q);
+                        
+                        if (!snap.empty) {
+                            const targetUser = snap.docs[0].data();
+                            // Create notification
+                            if (targetUser.uid !== currentUser.uid) {
+                                const notifRef = collection(db, 'artifacts', appId, 'users', targetUser.uid, 'notifications');
+                                await addDoc(notifRef, {
+                                    type: 'mention',
+                                    from: currentUser.uid,
+                                    fromName: currentUser.displayName || currentUser.email,
+                                    preview: text.substring(0, 50),
+                                    timestamp: serverTimestamp()
+                                });
+                            }
+                        }
+                    });
+                }
+                // -----------------------
+
                 const payload = {
                     conversationId: convoId,
                     text: text,
