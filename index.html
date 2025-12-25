@@ -104,11 +104,16 @@
             flex-grow: 1;
             display: flex;
             flex-direction: column;
-            justify-content: flex-end; /* Keeps messages at bottom when few */
+            /* justify-content: flex-end; REMOVED to fix scroll issue */
             padding-bottom: 20px;
             overflow-y: auto; /* Scroll ONLY the history */
             min-height: 0; /* Crucial for flex nested scrolling */
             padding-right: 10px; /* Avoid text hitting scrollbar */
+        }
+
+        /* Fix: Push content to bottom using margin on the first element */
+        #chat-history > :first-child {
+            margin-top: auto;
         }
 
         .message-line {
