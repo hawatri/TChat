@@ -92,10 +92,10 @@
             flex-direction: column;
             position: relative;
             z-index: 1;
-            overflow: hidden; /* Changed from overflow-y: auto to lock container */
+            overflow: hidden; 
         }
 
-        /* Scrollbar styles moved to #chat-history */
+        /* Scrollbar styles */
         #chat-history::-webkit-scrollbar { width: 10px; }
         #chat-history::-webkit-scrollbar-track { background: #000; }
         #chat-history::-webkit-scrollbar-thumb { background-color: var(--terminal-main); border: 2px solid #000; }
@@ -104,14 +104,13 @@
             flex-grow: 1;
             display: flex;
             flex-direction: column;
-            /* justify-content: flex-end; REMOVED to fix scroll issue */
             padding-bottom: 20px;
-            overflow-y: auto; /* Scroll ONLY the history */
-            min-height: 0; /* Crucial for flex nested scrolling */
-            padding-right: 10px; /* Avoid text hitting scrollbar */
+            overflow-y: auto; 
+            min-height: 0; 
+            padding-right: 10px; 
         }
 
-        /* Fix: Push content to bottom using margin on the first element */
+        /* Flexible bottom alignment */
         #chat-history > :first-child {
             margin-top: auto;
         }
@@ -125,7 +124,7 @@
             max-width: 90%;
             white-space: pre-wrap; 
             transition: opacity 0.5s ease-out;
-            flex-shrink: 0; /* Prevent squashing */
+            flex-shrink: 0; 
         }
 
         .ascii-art {
@@ -157,11 +156,11 @@
             border-top: 1px dashed rgba(51, 255, 0, 0.3);
             padding-top: 15px;
             padding-bottom: 5px;
-            background-color: var(--terminal-bg); /* Opaque background */
+            background-color: var(--terminal-bg); 
             position: relative;
             opacity: 0; 
             transition: opacity 0.5s;
-            flex-shrink: 0; /* Prevent input line from shrinking */
+            flex-shrink: 0; 
             z-index: 5;
         }
 
@@ -311,6 +310,7 @@
             border-bottom: 1px dotted rgba(51, 255, 0, 0.2);
             font-size: 1.2rem;
             cursor: pointer;
+            user-select: none; /* Prevent text selection highlight on touch */
         }
 
         .editor-row.active {
@@ -342,6 +342,7 @@
             border: 1px solid var(--terminal-main);
             padding: 5px 15px;
             cursor: pointer;
+            user-select: none;
         }
         
         .action-btn.active {
@@ -435,7 +436,7 @@
             
             <div class="editor-row" id="row-avatar">
                 <span class="field-label">AVATAR:</span>
-                <span class="field-value" id="edit-avatar">[ PRESS SPACE TO UPLOAD ]</span>
+                <span class="field-value" id="edit-avatar">[ TAP TO UPLOAD ]</span>
             </div>
             
             <div class="editor-actions">
@@ -444,7 +445,7 @@
             </div>
             
             <div style="text-align: center; font-size: 0.8rem; margin-top: 10px; color: var(--system-color);">
-                [TAB] NAVIGATE | [SPACE] EDIT/UPLOAD | [ENTER] CONFIRM
+                [TAB/ARROW] NAVIGATE | [SPACE/TAP] EDIT
             </div>
         </div>
     </div>
@@ -1243,6 +1244,7 @@
             editorSelection = 0;
             editorIsEditing = false;
             updateEditorVisuals();
+            setupEditorClicks(); // Ensure listeners are attached
         }
 
         function closeProfileEditor() {
@@ -1287,6 +1289,52 @@
             }
         }
 
+        function setupEditorClicks() {
+            // Safe to re-add, if needed, or add once. 
+            // Since this runs in a module script, we can just attach them once via ID if possible
+            // But openProfileEditor calls this to be safe.
+            // Using .onclick to prevent duplicate listeners if called multiple times
+            document.getElementById('row-nick').onclick = () => handleEditorInteraction(0);
+            document.getElementById('row-bio').onclick = () => handleEditorInteraction(1);
+            document.getElementById('row-avatar').onclick = () => handleEditorInteraction(2);
+            document.getElementById('btn-save').onclick = () => handleEditorInteraction(3);
+            document.getElementById('btn-cancel').onclick = () => handleEditorInteraction(4);
+        }
+
+        function handleEditorInteraction(index) {
+            // If selecting a new row
+            if (editorSelection !== index) {
+                editorSelection = index;
+                editorIsEditing = false;
+                SoundSys.blip();
+                updateEditorVisuals();
+                return;
+            }
+
+            // If selecting the ALREADY selected row (Action/Edit)
+            SoundSys.click();
+            
+            if (index === 0) { // Nick
+                const current = editNick.textContent;
+                const newVal = prompt("ENTER NICKNAME:", current);
+                if (newVal !== null) editNick.textContent = newVal;
+            } 
+            else if (index === 1) { // Bio
+                const current = editBio.textContent;
+                const newVal = prompt("ENTER BIO:", current);
+                if (newVal !== null) editBio.textContent = newVal;
+            }
+            else if (index === 2) { // Avatar
+                fileInput.click();
+            }
+            else if (index === 3) { // Save
+                saveProfileEditor();
+            }
+            else if (index === 4) { // Cancel
+                closeProfileEditor();
+            }
+        }
+
         function handleProfileEditorKey(e) {
             // If editing text, capture input
             if (editorIsEditing) {
@@ -1327,7 +1375,7 @@
                  SoundSys.blip();
                  updateEditorVisuals();
             }
-            // Actions
+            // Actions (Desktop)
             else if (e.key === ' ' || e.key === 'Enter') {
                 e.preventDefault();
                 SoundSys.click();
