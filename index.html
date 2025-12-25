@@ -551,7 +551,8 @@
         const commandsList = [
             'help', 'login', 'logout', 'friend', 'friends', 'friends-email', 'chat', 'reqbox', 'radio',
             'burn', 'theme', 'ascii', 'mute', 'unmute', 
-            'clear', 'status', 'date', 'exit', 'emoji', 'ping', 'neofetch', 'set-bio', 'whois', 'mentions'
+            'clear', 'status', 'date', 'exit', 'emoji', 'ping', 'neofetch', 'set-bio', 'whois', 'mentions',
+            'host', 'host-list'
         ];
 
         const subCommands = {
@@ -1643,6 +1644,8 @@
                     addMessage(null, '  status [mode]    - online/away/busy');
                     addMessage(null, '  chat [name/email] - Start chat');
                     addMessage(null, '  radio [freq]     - Join broadcast freq');
+                    addMessage(null, '  host             - Claim Radio Host (*)');
+                    addMessage(null, '  host-list        - Show current Radio Host');
                     addMessage(null, '  ping [email]     - Check user availability');
                     addMessage(null, '  neofetch         - Display system info');
                     addMessage(null, '  burn [msg]       - Send self-destruct msg');
@@ -1656,6 +1659,14 @@
 
                 case 'clear':
                     history.innerHTML = '';
+                    break;
+
+                case 'host':
+                    await claimRadioHost();
+                    break;
+
+                case 'host-list':
+                    await showRadioHost();
                     break;
 
                 case 'set-bio':
@@ -2170,7 +2181,8 @@
                 currentChatPartner = { 
                     type: 'radio', 
                     frequency: frequency, 
-                    id: 'RADIO_' + frequency
+                    id: 'RADIO_' + frequency,
+                    hostId: null
                 };
                 
                 state.mode = 'RADIO';
@@ -2180,7 +2192,7 @@
                 addMessage('SYSTEM', `BROADCASTING OPEN. ANYONE CAN HEAR YOU.`, true);
                 updatePrompt(currentUser.email);
 
-                // --- HOST/ADMIN LOGIC (Graceful Fallback) ---
+                // --- HOST/ADMIN LOGIC (READ ONLY) ---
                 try {
                     const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
                     const channelSnap = await getDoc(channelRef).catch(e => {
@@ -2188,30 +2200,20 @@
                         return null;
                     });
 
-                    if (channelSnap && !channelSnap.exists()) {
-                        // No host yet, create channel and assign host
-                        await setDoc(channelRef, {
-                            hostId: currentUser.uid,
-                            createdAt: serverTimestamp(),
-                            frequency: frequency
-                        }).catch(e => {
-                            console.warn("Failed to claim host:", e);
-                            throw e; // Throw to trigger local fallback
-                        });
-                        
-                        currentChatPartner.hostId = currentUser.uid;
-                        addMessage('SYSTEM', 'YOU ARE THE HOST (*) OF THIS FREQUENCY.', true);
-                    } else if (channelSnap && channelSnap.exists()) {
-                        // Channel exists, get host ID
+                    if (channelSnap && channelSnap.exists()) {
                         const data = channelSnap.data();
                         currentChatPartner.hostId = data.hostId;
                         if (data.hostId === currentUser.uid) {
                             addMessage('SYSTEM', 'WELCOME BACK, HOST (*).', true);
+                        } else {
+                            // Fetch host name for display
+                            // Optional: We can do this in host-list command instead to save reads
                         }
+                    } else {
+                        addMessage('SYSTEM', "NO HOST ASSIGNED. TYPE 'host' TO CLAIM.", true);
                     }
                 } catch (hostErr) {
-                    // Fail silently so user can still chat
-                    console.log("Host functionality unavailable:", hostErr.message);
+                    console.log("Host info unavailable:", hostErr.message);
                 }
                 // -----------------------
 
@@ -2251,6 +2253,81 @@
 
             } catch (error) {
                 addMessage('ERROR', 'RADIO ERROR: ' + error.message, false, false, true);
+            }
+        }
+
+        async function claimRadioHost() {
+            if (state.mode !== 'RADIO') {
+                addMessage('ERROR', 'YOU MUST BE TUNED INTO A RADIO CHANNEL.', false, false, true);
+                return;
+            }
+            
+            const frequency = currentChatPartner.frequency;
+            addMessage('SYSTEM', `ATTEMPTING TO CLAIM FREQUENCY ${frequency}...`, true);
+
+            try {
+                const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
+                const channelSnap = await getDoc(channelRef);
+
+                if (channelSnap.exists() && channelSnap.data().hostId) {
+                    const currentHostId = channelSnap.data().hostId;
+                    if (currentHostId === currentUser.uid) {
+                        addMessage('SYSTEM', 'YOU ARE ALREADY THE HOST.', true);
+                    } else {
+                        addMessage('ERROR', 'CHANNEL ALREADY HAS A HOST.', false, false, true);
+                    }
+                } else {
+                    // Claim it
+                    await setDoc(channelRef, {
+                        hostId: currentUser.uid,
+                        createdAt: serverTimestamp(),
+                        frequency: frequency
+                    }, { merge: true });
+                    
+                    currentChatPartner.hostId = currentUser.uid;
+                    addMessage('SYSTEM', 'SUCCESS. YOU ARE NOW THE HOST (*).', true);
+                }
+            } catch (e) {
+                addMessage('ERROR', 'CLAIM FAILED: ' + e.message, false, false, true);
+            }
+        }
+
+        async function showRadioHost() {
+            if (state.mode !== 'RADIO') {
+                addMessage('ERROR', 'YOU MUST BE TUNED INTO A RADIO CHANNEL.', false, false, true);
+                return;
+            }
+
+            const frequency = currentChatPartner.frequency;
+            addMessage('SYSTEM', `FETCHING HOST INFO FOR ${frequency}...`, true);
+
+            try {
+                const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
+                const channelSnap = await getDoc(channelRef);
+
+                if (!channelSnap.exists() || !channelSnap.data().hostId) {
+                    addMessage(null, 'NO HOST CURRENTLY ASSIGNED.');
+                    return;
+                }
+
+                const hostId = channelSnap.data().hostId;
+                
+                // Fetch Profile
+                const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', hostId);
+                const profileSnap = await getDoc(profileRef);
+                
+                let hostName = "UNKNOWN";
+                if (profileSnap.exists()) {
+                    hostName = profileSnap.data().displayName || profileSnap.data().email;
+                }
+
+                addMessage(null, `CURRENT HOST: ${hostName} (*)`);
+                if (hostId === currentUser.uid) {
+                    addMessage(null, `(That is you)`);
+                }
+
+            } catch (e) {
+                addMessage('ERROR', 'LOOKUP FAILED: ' + e.message, false, false, true);
             }
         }
 
