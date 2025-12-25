@@ -1,517 +1,10 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>T-CHAT_LINK_V2.0</title>
-    <link rel="icon" type="image/png" href="tchat.png">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            /* Default Theme: Green Phosphor */
-            --terminal-main: #33ff00;
-            --terminal-glow: #33ff00;
-            --terminal-bg: #0a0a0a;
-            --bezel-color: #222;
-            
-            /* Secondary colors */
-            --system-color: #ffaa00; 
-            --chat-color: #00ccff;
-            --error-color: #ff3333;
-            --radio-color: #ff33cc;
-        }
-
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: var(--terminal-bg);
-            height: 100dvh; 
-            width: 100vw;
-            font-family: 'VT323', monospace;
-            overflow: hidden;
-        }
-
-        .crt-container {
-            width: 100%;
-            height: 100%;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .bezel-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            border: 25px solid var(--bezel-color);
-            border-radius: 20px;
-            box-shadow: inset 0 0 20px #000;
-            pointer-events: none;
-            z-index: 20;
-        }
-
-        .crt-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: 
-                linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
-                linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-            background-size: 100% 4px, 3px 100%;
-            pointer-events: none;
-            z-index: 10;
-            animation: flicker 0.15s infinite;
-        }
-
-        .crt-overlay::before {
-            content: " ";
-            display: block;
-            position: absolute;
-            top: 0;
-            left: 0;
-            bottom: 0;
-            right: 0;
-            background: radial-gradient(circle, rgba(0,0,0,0) 60%, rgba(0,0,0,0.4) 100%);
-            z-index: 10;
-        }
-
-        /* Flash Animation for Notifications */
-        @keyframes screen-flash {
-            0% { background-color: transparent; }
-            50% { background-color: rgba(255, 51, 51, 0.3); }
-            100% { background-color: transparent; }
-        }
-
-        .notification-flash {
-            animation: screen-flash 0.5s ease-in-out;
-        }
-
-        .terminal-content {
-            height: 100%;
-            width: 100%;
-            padding: 40px;
-            box-sizing: border-box;
-            color: var(--terminal-main);
-            text-shadow: 0 0 4px var(--terminal-glow);
-            font-size: 1.5rem;
-            display: flex;
-            flex-direction: column;
-            position: relative;
-            z-index: 1;
-            overflow: hidden; 
-        }
-
-        /* Scrollbar styles */
-        #chat-history::-webkit-scrollbar { width: 10px; }
-        #chat-history::-webkit-scrollbar-track { background: #000; }
-        #chat-history::-webkit-scrollbar-thumb { background-color: var(--terminal-main); border: 2px solid #000; }
-
-        #chat-history {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            padding-bottom: 20px;
-            overflow-y: auto; 
-            min-height: 0; 
-            padding-right: 10px; 
-        }
-
-        /* Flexible bottom alignment */
-        #chat-history > :first-child {
-            margin-top: auto;
-        }
-
-        .message-line {
-            margin-bottom: 0.5rem;
-            word-wrap: break-word;
-            line-height: 1.4;
-            opacity: 0;
-            animation: fadeIn 0.1s forwards;
-            max-width: 90%;
-            white-space: pre-wrap; 
-            transition: opacity 0.5s ease-out;
-            flex-shrink: 0; 
-        }
-
-        .highlight-mention {
-            background-color: var(--terminal-main);
-            color: var(--terminal-bg);
-            padding: 0 4px;
-            font-weight: bold;
-        }
-
-        .ascii-art {
-            white-space: pre;
-            font-size: 0.8rem;
-            line-height: 1rem;
-            overflow-x: auto;
-            color: var(--terminal-main);
-            margin: 10px 0;
-            display: block;
-        }
-
-        .system-msg { color: var(--system-color); text-shadow: 0 0 4px var(--system-color); }
-        .chat-msg { color: var(--chat-color); text-shadow: 0 0 4px var(--chat-color); }
-        .radio-msg { color: var(--radio-color); text-shadow: 0 0 4px var(--radio-color); }
-        .error-msg { color: var(--error-color); text-shadow: 0 0 4px var(--error-color); }
-        .user-prefix { font-weight: bold; margin-right: 0.5rem; }
-
-        .status-dot { display: inline-block; margin-right: 8px; font-size: 1.2rem; }
-        .status-online { color: var(--terminal-main); text-shadow: 0 0 5px var(--terminal-main); }
-        .status-away { color: var(--system-color); text-shadow: 0 0 5px var(--system-color); }
-        .status-busy { color: var(--error-color); text-shadow: 0 0 5px var(--error-color); }
-
-        .burn-timer { color: var(--error-color); margin-left: 10px; font-size: 0.8em; font-weight: bold; }
-
-        .input-line {
-            display: flex;
-            align-items: baseline; /* FIX: Aligns prompt and cursor perfectly */
-            border-top: 1px dashed rgba(51, 255, 0, 0.3);
-            padding-top: 15px;
-            padding-bottom: 5px;
-            background-color: var(--terminal-bg); 
-            position: relative;
-            opacity: 0; 
-            transition: opacity 0.5s;
-            flex-shrink: 0; 
-            z-index: 5;
-        }
-
-        .prompt { 
-            margin-right: 15px; 
-            font-weight: bold; 
-            margin-top: 0; /* FIX: Removed top margin */
-            white-space: nowrap;
-        }
-
-        .cmd-wrapper {
-            position: relative;
-            flex-grow: 1;
-            display: flex;
-            align-items: flex-start;
-            min-height: 1.5rem; 
-            height: auto;
-        }
-
-        #command-input {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            opacity: 0;
-            z-index: 10;
-            cursor: text;
-            font-family: 'VT323', monospace;
-            font-size: 1.5rem;
-            line-height: 1.5rem;
-            border: none;
-            outline: none;
-            background: transparent;
-            color: transparent;
-            resize: none;
-            overflow: hidden;
-            white-space: pre-wrap; 
-            word-break: break-all;
-            padding: 0;
-            margin: 0;
-        }
-
-        #cmd-display {
-            font-family: 'VT323', monospace;
-            font-size: 1.5rem;
-            line-height: 1.5rem;
-            color: var(--terminal-main);
-            text-shadow: 0 0 4px var(--terminal-glow);
-            white-space: pre-wrap; 
-            word-break: break-all;
-            pointer-events: none;
-            display: block; 
-            width: 100%;
-            overflow: visible;
-            min-height: 1.5rem;
-        }
-
-        #cmd-cursor {
-            background-color: var(--terminal-main);
-            color: var(--terminal-bg);
-            animation: blink 1s step-end infinite;
-            min-width: 1ch;
-            display: inline-block;
-            text-align: center;
-            vertical-align: baseline; /* FIX: Sit on line */
-            line-height: 1;
-        }
-
-        .input-line:not(:focus-within) #cmd-cursor {
-            background-color: transparent;
-            color: var(--terminal-main);
-            border: 1px solid var(--terminal-main);
-            animation: none;
-        }
-
-        #autocomplete-menu {
-            position: absolute;
-            bottom: 100%; 
-            left: 0;
-            min-width: 200px;
-            max-height: 250px;
-            background-color: var(--terminal-bg);
-            border: 1px solid var(--terminal-main);
-            box-shadow: 0 0 10px rgba(0,0,0,0.8);
-            display: none; 
-            flex-direction: column;
-            overflow-y: auto;
-            z-index: 100;
-        }
-        
-        #autocomplete-menu::-webkit-scrollbar { width: 5px; }
-        #autocomplete-menu::-webkit-scrollbar-track { background: #000; }
-        #autocomplete-menu::-webkit-scrollbar-thumb { background-color: var(--terminal-main); }
-
-        .suggestion-item {
-            padding: 5px 10px;
-            color: var(--terminal-main);
-            cursor: pointer;
-            font-family: 'VT323', monospace;
-            font-size: 1.3rem;
-            border-bottom: 1px dotted rgba(51, 255, 0, 0.2);
-        }
-
-        .suggestion-item.selected, .suggestion-item:hover {
-            background-color: var(--terminal-main);
-            color: var(--terminal-bg);
-        }
-
-        /* --- TAB Button Styling --- */
-        #tab-btn {
-            background: transparent;
-            border: 1px solid var(--terminal-main);
-            color: var(--terminal-main);
-            font-family: 'VT323', monospace;
-            font-size: 1.2rem;
-            padding: 0 10px;
-            height: 1.5rem;
-            margin-left: 10px;
-            cursor: pointer;
-            text-shadow: 0 0 4px var(--terminal-glow);
-            box-shadow: 0 0 4px var(--terminal-glow);
-            flex-shrink: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            user-select: none;
-            margin-top: 0;
-            align-self: flex-end; /* Stick to bottom of input line */
-        }
-
-        #tab-btn:active {
-            background: var(--terminal-main);
-            color: var(--terminal-bg);
-        }
-
-        /* --- Profile Editor Overlay --- */
-        #profile-editor-overlay {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 90%;
-            max-width: 600px;
-            background-color: var(--terminal-bg);
-            border: 2px solid var(--terminal-main);
-            z-index: 50;
-            display: none; /* Hidden by default */
-            flex-direction: column;
-            padding: 2px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.9);
-        }
-
-        .editor-header {
-            background-color: var(--terminal-main);
-            color: var(--terminal-bg);
-            text-align: center;
-            padding: 5px;
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-
-        .editor-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center; /* Better vertical alignment with input */
-            padding: 8px 10px;
-            border-bottom: 1px dotted rgba(51, 255, 0, 0.2);
-            font-size: 1.2rem;
-            cursor: pointer;
-            user-select: none; 
-        }
-
-        .editor-row.active {
-            background-color: rgba(51, 255, 0, 0.2);
-        }
-        
-        .editor-row.editing .field-value {
-            /* No longer blinking background for whole cell, using input style */
-        }
-
-        .field-label { width: 30%; font-weight: bold; }
-        .field-value { 
-            width: 65%; 
-            white-space: pre-wrap; 
-            word-break: break-all; 
-            min-height: 1.5em; 
-            border-bottom: 1px dashed var(--terminal-main); 
-            display: flex; 
-            align-items: center;
-        }
-        
-        /* New Style for Inline Input */
-        .terminal-inline-input {
-            background: transparent;
-            border: none;
-            color: var(--terminal-main);
-            font-family: 'VT323', monospace;
-            font-size: 1.2rem;
-            width: 100%;
-            outline: none;
-            padding: 0;
-            margin: 0;
-            text-shadow: 0 0 4px var(--terminal-glow);
-        }
-
-        .editor-actions {
-            margin-top: 10px;
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            padding: 10px;
-        }
-
-        .action-btn {
-            border: 1px solid var(--terminal-main);
-            padding: 5px 15px;
-            cursor: pointer;
-            user-select: none;
-        }
-        
-        .action-btn.active {
-            background-color: var(--terminal-main);
-            color: var(--terminal-bg);
-        }
-
-        @keyframes flicker {
-            0% { opacity: 0.97; } 50% { opacity: 0.99; } 100% { opacity: 0.94; }
-        }
-        
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0; }
-        }
-
-        @keyframes fadeIn { to { opacity: 1; } }
-
-        .power-led {
-            width: 10px; height: 10px; background-color: #ff0000; border-radius: 50%;
-            position: absolute; bottom: 30px; right: 30px; box-shadow: 0 0 8px #ff0000;
-            z-index: 25; pointer-events: none;
-        }
-
-        .brand-logo {
-            position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
-            color: #333; font-size: 1rem; font-family: sans-serif; letter-spacing: 4px;
-            font-weight: bold; z-index: 25; pointer-events: none;
-            text-shadow: 0 1px 1px rgba(255,255,255,0.1);
-        }
-
-        @media (max-width: 768px) {
-            .bezel-overlay { border-width: 10px; border-radius: 12px; }
-            .terminal-content { padding: 15px; padding-bottom: 20px; font-size: 1.2rem; }
-            .input-line { padding-top: 10px; }
-            .prompt { margin-right: 5px; }
-            #command-input, #cmd-display { font-size: 1.2rem; }
-            .brand-logo { font-size: 0.7rem; bottom: 2px; letter-spacing: 1px; opacity: 0.5; }
-            .power-led { width: 6px; height: 6px; bottom: 10px; right: 10px; }
-            #autocomplete-menu { max-height: 180px; min-width: 150px; bottom: 100%; left: 0; }
-            .suggestion-item { font-size: 1.2rem; padding: 8px; }
-            
-            /* Tab button adjustment for mobile */
-            #tab-btn {
-                font-size: 1rem;
-                padding: 0 6px;
-                margin-left: 6px;
-                height: 1.4rem;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="crt-container">
-        <div class="crt-overlay" id="crt-overlay"></div>
-        <div class="bezel-overlay"></div>
-        <div class="power-led"></div>
-        <div class="brand-logo"></div>
-
-        <div class="terminal-content" id="terminal-container">
-            <div id="chat-history"></div>
-
-            <div class="input-line" id="input-line-container">
-                <span class="prompt" id="prompt-span">...</span>
-                <div class="cmd-wrapper">
-                    <div id="autocomplete-menu"></div>
-                    <!-- Switched to Textarea for multiline -->
-                    <textarea id="command-input" rows="1" spellcheck="false" autocomplete="off"></textarea>
-                    <input type="file" id="file-upload" accept="image/*" style="display:none">
-                    <!-- FIX: Removed all whitespace between spans -->
-                    <div id="cmd-display"><span id="cmd-before"></span><span id="cmd-cursor">&nbsp;</span><span id="cmd-after"></span></div>
-                </div>
-                <!-- Tab Button for Android/Touch Devices -->
-                <button id="tab-btn">TAB</button>
-            </div>
-        </div>
-        
-        <!-- Profile Editor Overlay -->
-        <div id="profile-editor-overlay">
-            <div class="editor-header">:: T-OS PROFILE EDITOR UTILITY ::</div>
-            
-            <div class="editor-row" id="row-nick">
-                <span class="field-label">NICKNAME:</span>
-                <span class="field-value" id="edit-nick"></span>
-            </div>
-            
-            <div class="editor-row" id="row-bio">
-                <span class="field-label">BIO:</span>
-                <span class="field-value" id="edit-bio"></span>
-            </div>
-            
-            <div class="editor-row" id="row-avatar">
-                <span class="field-label">AVATAR:</span>
-                <span class="field-value" id="edit-avatar">[ TAP/SPACE TO UPLOAD ]</span>
-            </div>
-            
-            <div class="editor-actions">
-                <div class="action-btn" id="btn-save">[ SAVE CHANGES ]</div>
-                <div class="action-btn" id="btn-cancel">[ CANCEL ]</div>
-            </div>
-            
-            <div style="text-align: center; font-size: 0.8rem; margin-top: 10px; color: var(--system-color);">
-                [TAB/ARROW] NAVIGATE | [SPACE/TAP] EDIT
-            </div>
-        </div>
-    </div>
-
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signInAnonymously, setPersistence, browserLocalPersistence, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, setDoc, doc, getDocs, getDoc, deleteDoc, limit, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Configuration ---
-        const appId = 'tchat-terminal'; 
+        // CRITICAL FIX: Use the system provided ID to avoid permission errors
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'tchat-terminal';
         
         const firebaseConfig = {
             apiKey: "AIzaSyCc4hgOZCeHnBgcwHk7mWMaQEbjodVLuc4",
@@ -534,7 +27,7 @@
         let currentChatPartner = null; 
         let messagesUnsubscribe = null;
         let notificationUnsubscribe = null;
-        let channelMetaUnsubscribe = null;
+        let channelMetaUnsubscribe = null; // For radio channel metadata
         let activeRadioParticipants = new Set(); // Stores display names for radio autocomplete
         let currentChannelAdmins = []; // Array of Admin UIDs for current radio
 
@@ -560,7 +53,8 @@
         const subCommands = {
             'theme': ['green', 'amber', 'blue', 'white', 'matrix'],
             'status': ['online', 'away', 'busy'],
-            'friend': ['add', 'nick']
+            'friend': ['add', 'nick'],
+            'host': ['add', 'remove']
         };
 
         let autocompleteOptions = [];
@@ -609,7 +103,7 @@
             '(gun)': '︻╦╤─', '(mg)': '︻╦╤─', '(hadouken)': '༼つಠ益ಠ༽つ ─=≡ΣO))', '(hammerandsickle)': '☭',
             '(hs)': '☭', '(handleft)': '☜', '(hl)': '☜', '(handright)': '☞', '(hr)': '☞', '(haha)': '٩(^‿^)۶',
             '(happy)': '٩( ๑╹ ꇴ╹)۶', '(happygarry)': 'ᕕ( ᐛ )ᕗ', '(h)': '♥', '(heart)': '♥', '(hello)': '(ʘ‿ʘ)╯',
-            '(ohai)': '(ʘ‿ʘ)╯', '(bye)': '(ʘ‿ʘ)╯', '(help)': '\\(°Ω°)/', '(highfive)': '._.)/\\(._.',
+            '(ohai)': '(ʘ‿ʘ)╯', '(bye)': '(ʘ‿ʘ)╯', '(help)': '\\(°Ω°)/','(hi)' : '(°▽°)/', '(highfive)': '._.)/\\(._.',
             '(hitting)': '( ｀皿´)｡ﾐ/', '(hug)': '(づ｡◕‿‿◕｡)づ', '(hugs)': '(づ｡◕‿‿◕｡)づ',
             '(iknowright)': '┐｜･ิω･ิ#｜┌', '(ikr)': '┐｜･ิω･ิ#｜┌', '(illuminati)': '୧(▲ᴗ▲)ノ', '(infinity)': '∞',
             '(inf)': '∞', '(inlove)': '(っ´ω`c)♡', '(int)': '∫', '(internet)': 'ଘ(੭*ˊᵕˋ)੭* ̀ˋ ɪɴᴛᴇʀɴᴇᴛ',
@@ -899,8 +393,8 @@
             let matches = [];
 
             // 1. Check for Mention: @(...)
-            // Matches "@(" at end, or "@(some text" at end
-            const mentionMatch = val.match(/@\(([^\)]*)$/);
+            // Matches "@(\" at end, or "@(some text\" at end
+            const mentionMatch = val.match(/@\(([^)]*)$/);
             
             if (mentionMatch && state.mode === 'RADIO') {
                 const term = mentionMatch[1].toLowerCase(); // text inside ( )
@@ -1122,7 +616,8 @@
                 promptSpan.textContent = `[CHAT:${name}] >`;
                 input.style.caretColor = 'var(--chat-color)';
             } else if (state.mode === 'RADIO') {
-                promptSpan.textContent = `[RADIO:${currentChatPartner.frequency}] >`;
+                const name = currentChatPartner.frequency;
+                promptSpan.textContent = `[RADIO:${name}] >`;
                 input.style.caretColor = 'var(--radio-color)';
             } else {
                 promptSpan.textContent = `${username}@TChat:~$`;
@@ -1189,9 +684,6 @@
                 
                 if (isChat) {
                     prefixColor = (sender === 'ME') ? 'var(--terminal-main)' : 'var(--chat-color)';
-                }
-                if (isRadio) {
-                    prefixColor = (sender === 'ME') ? 'var(--terminal-main)' : 'var(--radio-color)';
                 }
                 
                 if (isSystem) prefixColor = 'var(--system-color)';
@@ -1404,8 +896,10 @@
             addMessage('SYSTEM', 'SAVING PROFILE...', true);
             const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', currentUser.uid);
             
+            const rawNick = editNick.textContent.trim();
             const dataToUpdate = {
-                displayName: editNick.textContent.trim(),
+                displayName: rawNick,
+                displayNameLower: rawNick.toLowerCase(), // Add this for easier search later
                 bio: editBio.textContent.trim(),
             };
             
@@ -1585,8 +1079,8 @@
                 img.src = url;
                 
                 img.onload = () => {
-                    const cols = 60; // Width in characters
-                    const charAspect = 0.5; // Characters are taller than wide
+                    const cols = 100; // Increased width for better resolution
+                    const charAspect = 0.5; 
                     const aspect = img.height / img.width;
                     const rows = Math.floor(cols * aspect * charAspect);
                     
@@ -1600,7 +1094,8 @@
                     try {
                         const data = ctx.getImageData(0, 0, cols, rows).data;
                         let ascii = "";
-                        const chars = " .:-=+*#%@"; // Simple gradient
+                        // Denser character ramp for smoother shading
+                        const chars = " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$";
                         
                         for (let y = 0; y < rows; y++) {
                             for (let x = 0; x < cols; x++) {
@@ -1661,57 +1156,6 @@
 
                 case 'clear':
                     history.innerHTML = '';
-                    break;
-
-                case 'host':
-                    if (args.length > 0) {
-                        // Promote logic: host @name or host name
-                        let target = args.join(' ');
-                        // Remove @() if present
-                        const match = target.match(/@\((.*?)\)/);
-                        if(match) target = match[1];
-                        await promoteUser(target);
-                    } else {
-                        // Claim logic
-                        await claimRadioHost();
-                    }
-                    break;
-
-                case 'unhost':
-                    if (args.length > 0) {
-                        let target = args.join(' ');
-                        const match = target.match(/@\((.*?)\)/);
-                        if(match) target = match[1];
-                        await demoteUser(target);
-                    } else {
-                        addMessage('SYSTEM', 'USAGE: unhost [username]', true);
-                    }
-                    break;
-
-                case 'kick':
-                    if (args.length > 0) {
-                        let target = args.join(' ');
-                        const match = target.match(/@\((.*?)\)/);
-                        if(match) target = match[1];
-                        await kickUser(target);
-                    } else {
-                        addMessage('SYSTEM', 'USAGE: kick [username]', true);
-                    }
-                    break;
-
-                case 'unkick':
-                    if (args.length > 0) {
-                        let target = args.join(' ');
-                        const match = target.match(/@\((.*?)\)/);
-                        if(match) target = match[1];
-                        await unkickUser(target);
-                    } else {
-                        addMessage('SYSTEM', 'USAGE: unkick [username]', true);
-                    }
-                    break;
-
-                case 'host-list':
-                    await showRadioHost();
                     break;
 
                 case 'set-bio':
@@ -1846,7 +1290,7 @@
                         addMessage('SYSTEM', 'USAGE: chat [name/email]', true);
                     }
                     break;
-
+                
                 case 'radio':
                     if (!ensureAuth()) return;
                     if (args[0]) {
@@ -1854,6 +1298,57 @@
                     } else {
                         addMessage('SYSTEM', 'USAGE: radio [frequency] (e.g. 101.5)', true);
                     }
+                    break;
+                
+                case 'host':
+                    if (args.length > 0) {
+                        // Promote logic: host @name or host name
+                        let target = args.join(' ');
+                        // Remove @() if present
+                        const match = target.match(/@\((.*?)\)/);
+                        if(match) target = match[1];
+                        await promoteUser(target);
+                    } else {
+                        // Claim logic
+                        await claimRadioHost();
+                    }
+                    break;
+                
+                case 'unhost':
+                    if (args.length > 0) {
+                        let target = args.join(' ');
+                        const match = target.match(/@\((.*?)\)/);
+                        if(match) target = match[1];
+                        await demoteUser(target);
+                    } else {
+                        addMessage('SYSTEM', 'USAGE: unhost [username]', true);
+                    }
+                    break;
+                
+                case 'kick':
+                    if (args.length > 0) {
+                        let target = args.join(' ');
+                        const match = target.match(/@\((.*?)\)/);
+                        if(match) target = match[1];
+                        await kickUser(target);
+                    } else {
+                        addMessage('SYSTEM', 'USAGE: kick [username]', true);
+                    }
+                    break;
+                
+                case 'unkick':
+                    if (args.length > 0) {
+                        let target = args.join(' ');
+                        const match = target.match(/@\((.*?)\)/);
+                        if(match) target = match[1];
+                        await unkickUser(target);
+                    } else {
+                        addMessage('SYSTEM', 'USAGE: unkick [username]', true);
+                    }
+                    break;
+                
+                case 'host-list':
+                    await showRadioHost();
                     break;
 
                 case 'date':
@@ -1874,7 +1369,30 @@
                     break;
 
                 case 'exit':
-                    break;
+            // Check if we are actually in a mode to exit from
+            if (state.mode === 'CHAT' || state.mode === 'RADIO') {
+                
+                // 1. Detach Listeners (Stop listening for new messages)
+                if (messagesUnsubscribe) messagesUnsubscribe();
+                if (channelMetaUnsubscribe) channelMetaUnsubscribe();
+                messagesUnsubscribe = null;
+                channelMetaUnsubscribe = null;
+                
+                // 2. Reset State
+                state.mode = 'COMMAND';
+                currentChatPartner = null;
+                
+                // 3. Clear Screen and Notify
+                history.innerHTML = ''; 
+                addMessage('SYSTEM', 'DISCONNECTED.', true);
+                
+                // 4. Restore the Command Prompt
+                const name = currentUser && !currentUser.isAnonymous 
+                    ? (currentUser.displayName || currentUser.email.split('@')[0]) 
+                    : 'guest';
+                updatePrompt(name);
+            }
+            break;
 
                 default:
                     addMessage('SYSTEM', `UNKNOWN COMMAND: ${cmd}`, true);
@@ -1889,180 +1407,6 @@
             return true;
         }
 
-        // --- Radio Helper Functions ---
-
-        async function resolveUserByNickOrEmail(identifier) {
-            // Try by email first
-            const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
-            let q = query(usersRef, where("email", "==", identifier));
-            let snapshot = await getDocs(q);
-            
-            if (!snapshot.empty) return snapshot.docs[0].data();
-
-            // Try by displayName
-            q = query(usersRef, where("displayName", "==", identifier));
-            snapshot = await getDocs(q);
-            if (!snapshot.empty) return snapshot.docs[0].data();
-
-            return null;
-        }
-
-        async function claimRadioHost() {
-            if (state.mode !== 'RADIO') {
-                addMessage('ERROR', 'YOU MUST BE TUNED INTO A RADIO CHANNEL.', false, false, true);
-                return;
-            }
-            
-            const frequency = currentChatPartner.frequency;
-            
-            try {
-                const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
-                const channelSnap = await getDoc(channelRef);
-
-                let admins = [];
-                if (channelSnap.exists()) {
-                    admins = channelSnap.data().admins || [];
-                }
-
-                if (admins.length > 0) {
-                    addMessage('ERROR', 'CHANNEL ALREADY HAS A HOST. ASK THEM TO ADD YOU.', false, false, true);
-                } else {
-                    // Claim
-                    await setDoc(channelRef, {
-                        admins: [currentUser.uid],
-                        banned: [],
-                        createdAt: serverTimestamp(),
-                        frequency: frequency
-                    }, { merge: true });
-                    addMessage('SYSTEM', 'SUCCESS. YOU ARE NOW THE SUPER ADMIN (*).', true);
-                }
-            } catch (e) {
-                addMessage('ERROR', 'CLAIM FAILED: ' + e.message, false, false, true);
-            }
-        }
-
-        async function promoteUser(targetName) {
-            if (state.mode !== 'RADIO') return;
-            if (!currentChannelAdmins.includes(currentUser.uid)) {
-                addMessage('ERROR', 'PERMISSION DENIED. ADMINS ONLY.', false, false, true);
-                return;
-            }
-
-            const targetUser = await resolveUserByNickOrEmail(targetName);
-            if (!targetUser) {
-                addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
-                return;
-            }
-
-            const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', currentChatPartner.frequency);
-            await updateDoc(channelRef, {
-                admins: arrayUnion(targetUser.uid)
-            });
-            addMessage('SYSTEM', `PROMOTED ${targetName} TO ADMIN.`, true);
-        }
-
-        async function demoteUser(targetName) {
-            if (state.mode !== 'RADIO') return;
-            if (!currentChannelAdmins.includes(currentUser.uid)) {
-                addMessage('ERROR', 'PERMISSION DENIED. ADMINS ONLY.', false, false, true);
-                return;
-            }
-
-            const targetUser = await resolveUserByNickOrEmail(targetName);
-            if (!targetUser) {
-                addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
-                return;
-            }
-
-            const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', currentChatPartner.frequency);
-            await updateDoc(channelRef, {
-                admins: arrayRemove(targetUser.uid)
-            });
-            addMessage('SYSTEM', `REMOVED ADMIN STATUS FROM ${targetName}.`, true);
-        }
-
-        async function kickUser(targetName) {
-            if (state.mode !== 'RADIO') return;
-            if (!currentChannelAdmins.includes(currentUser.uid)) {
-                addMessage('ERROR', 'PERMISSION DENIED. ADMINS ONLY.', false, false, true);
-                return;
-            }
-
-            const targetUser = await resolveUserByNickOrEmail(targetName);
-            if (!targetUser) {
-                addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
-                return;
-            }
-
-            const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', currentChatPartner.frequency);
-            await updateDoc(channelRef, {
-                banned: arrayUnion(targetUser.uid)
-            });
-            addMessage('SYSTEM', `KICKED AND BANNED ${targetName}.`, true);
-        }
-
-        async function unkickUser(targetName) {
-            if (state.mode !== 'RADIO') return;
-            if (!currentChannelAdmins.includes(currentUser.uid)) {
-                addMessage('ERROR', 'PERMISSION DENIED. ADMINS ONLY.', false, false, true);
-                return;
-            }
-
-            const targetUser = await resolveUserByNickOrEmail(targetName);
-            if (!targetUser) {
-                addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
-                return;
-            }
-
-            const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', currentChatPartner.frequency);
-            await updateDoc(channelRef, {
-                banned: arrayRemove(targetUser.uid)
-            });
-            addMessage('SYSTEM', `UNBANNED ${targetName}.`, true);
-        }
-
-        async function showRadioHost() {
-            if (state.mode !== 'RADIO') {
-                addMessage('ERROR', 'YOU MUST BE TUNED INTO A RADIO CHANNEL.', false, false, true);
-                return;
-            }
-
-            const frequency = currentChatPartner.frequency;
-            addMessage('SYSTEM', `FETCHING ADMINS FOR ${frequency}...`, true);
-
-            try {
-                const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
-                const channelSnap = await getDoc(channelRef);
-
-                if (!channelSnap.exists() || !channelSnap.data().admins || channelSnap.data().admins.length === 0) {
-                    addMessage(null, 'NO ADMINS ASSIGNED.');
-                    return;
-                }
-
-                const adminIds = channelSnap.data().admins;
-                const bannedIds = channelSnap.data().banned || [];
-                
-                addMessage(null, `--- CHANNEL ADMINS ---`);
-                for (const uid of adminIds) {
-                    const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', uid);
-                    const profileSnap = await getDoc(profileRef);
-                    let name = "Unknown ID: " + uid;
-                    if (profileSnap.exists()) {
-                        name = profileSnap.data().displayName || profileSnap.data().email;
-                    }
-                    addMessage(null, `> ${name} (*)${uid === currentUser.uid ? ' [YOU]' : ''}`);
-                }
-
-                if (bannedIds.length > 0) {
-                    addMessage(null, `--- BANNED USERS ---`);
-                    addMessage(null, `> ${bannedIds.length} user(s) banned.`);
-                }
-
-            } catch (e) {
-                addMessage('ERROR', 'LOOKUP FAILED: ' + e.message, false, false, true);
-            }
-        }
-
         // --- Feature Implementation ---
 
         async function showRecentMentions() {
@@ -2071,7 +1415,11 @@
             
             try {
                 const notifRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'notifications');
-                const q = query(notifRef, orderBy('timestamp', 'desc'), limit(10));
+                // Remove orderBy to avoid indexing issues if possible, or keep simple
+                // If it fails, we remove orderBy. For now keeping it simple.
+                const q = query(notifRef, limit(10)); 
+                // Removed orderBy timestamp to prevent index errors. Results may not be perfectly ordered but will work.
+                
                 const snap = await getDocs(q);
                 
                 if (snap.empty) {
@@ -2079,8 +1427,12 @@
                     return;
                 }
                 
-                snap.forEach(doc => {
-                    const data = doc.data();
+                // Sort in JS
+                const notifs = [];
+                snap.forEach(doc => notifs.push(doc.data()));
+                notifs.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+                
+                notifs.forEach(data => {
                     const time = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleTimeString() : '??:??';
                     addMessage(null, `[${time}] ${data.fromName}: ${data.preview}`);
                 });
@@ -2395,87 +1747,6 @@
             }
         }
 
-        async function joinRadio(frequency) {
-            try {
-                currentChatPartner = { 
-                    type: 'radio', 
-                    frequency: frequency, 
-                    id: 'RADIO_' + frequency
-                };
-                
-                state.mode = 'RADIO';
-                history.innerHTML = ''; 
-                activeRadioParticipants.clear(); // Reset participants
-                currentChannelAdmins = []; // Reset admins
-                
-                addMessage('SYSTEM', `--- TUNED TO FREQUENCY: ${frequency} MHz ---`, true);
-                addMessage('SYSTEM', `BROADCASTING OPEN. ANYONE CAN HEAR YOU.`, true);
-                updatePrompt(currentUser.email);
-
-                // --- Real-time Channel Meta Listener (Admins/Bans) ---
-                if (channelMetaUnsubscribe) channelMetaUnsubscribe();
-                const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
-                
-                channelMetaUnsubscribe = onSnapshot(channelRef, (docSnap) => {
-                    if (docSnap.exists()) {
-                        const data = docSnap.data();
-                        currentChannelAdmins = data.admins || [];
-                        
-                        // Check if banned
-                        if (data.banned && data.banned.includes(currentUser.uid)) {
-                            // Leave channel
-                            if (messagesUnsubscribe) messagesUnsubscribe();
-                            if (channelMetaUnsubscribe) channelMetaUnsubscribe();
-                            state.mode = 'COMMAND';
-                            history.innerHTML = '';
-                            addMessage('ERROR', 'CONNECTION TERMINATED. FREQUENCY BLOCKED.', false, false, true);
-                            updatePrompt(currentUser.email.split('@')[0]);
-                            return;
-                        }
-                    } else {
-                        currentChannelAdmins = [];
-                    }
-                });
-
-                const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
-                // Query by conversation ID "RADIO_{freq}"
-                const qMsg = query(msgsRef, where('conversationId', '==', currentChatPartner.id), orderBy('timestamp', 'asc'));
-
-                if (messagesUnsubscribe) messagesUnsubscribe();
-
-                messagesUnsubscribe = onSnapshot(qMsg, (snapshot) => {
-                    snapshot.docChanges().forEach((change) => {
-                        if (change.type === "added") {
-                            const msg = change.doc.data();
-                            
-                            // Track participant for autocomplete
-                            if (msg.senderDisplayName) {
-                                activeRadioParticipants.add(msg.senderDisplayName);
-                            }
-
-                            let senderName = msg.senderDisplayName || 'UNKNOWN';
-                            if (msg.senderId === currentUser.uid) senderName = 'ME';
-                            
-                            // Check for host flag
-                            if (msg.isHost) {
-                                senderName += ' (*)';
-                            }
-                            
-                            addMessage(senderName, msg.text, false, false, false, msg.isAscii || false, change.doc.id, msg.burn, true);
-                        }
-                    });
-                }, (error) => {
-                     if(error.message.includes("index")) {
-                         addMessage('ERROR', 'INDEX REQUIRED. Check console.', false, false, true);
-                         console.error(error);
-                     }
-                });
-
-            } catch (error) {
-                addMessage('ERROR', 'RADIO ERROR: ' + error.message, false, false, true);
-            }
-        }
-
         async function startChat(identifier) {
             try {
                 let friendData = null;
@@ -2564,19 +1835,22 @@
 
         async function processChatInput(text) {
             const lowText = text.toLowerCase();
+            const parts = text.split(' ');
+            const cmd = parts[0].toLowerCase();
             
-            if (lowText === 'exit') {
-                if (messagesUnsubscribe) messagesUnsubscribe();
-                if (channelMetaUnsubscribe) channelMetaUnsubscribe();
-                messagesUnsubscribe = null;
-                channelMetaUnsubscribe = null;
-                state.mode = 'COMMAND';
-                currentChatPartner = null;
-                history.innerHTML = '';
-                addMessage('SYSTEM', 'DISCONNECTED.', true);
-                updatePrompt(currentUser.email.split('@')[0]);
-                return;
+            // --- 1. INTERCEPT COMMANDS IN CHAT MODE ---
+            const radioCommands = ['host', 'host-list', 'kick', 'unkick', 'unhost', 'help', 'clear', 'exit'];
+            
+            if (radioCommands.includes(cmd)) {
+                // If it's a command, route it to processCommand instead of chatting it
+                if (cmd !== 'exit') {
+                    // Show a local echo so user knows it ran (optional, but good for UX)
+                    addMessage('ME', text); 
+                }
+                await processCommand(text);
+                return; // STOP here. Do not send as message.
             }
+            // ------------------------------------------
 
             // Trigger upload from chat
             if (lowText === 'ascii' || lowText === 'upload') {
@@ -2690,10 +1964,299 @@
             }
         }
 
+        // --- Radio Helper Functions ---
+        
+        async function resolveUserByNickOrEmail(identifier) {
+            // Try by email first
+            const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
+            let q = query(usersRef, where("email", "==", identifier));
+            let snapshot = await getDocs(q);
+            
+            if (!snapshot.empty) return snapshot.docs[0].data();
+
+            // Try by displayName
+            q = query(usersRef, where("displayName", "==", identifier));
+            snapshot = await getDocs(q);
+            if (!snapshot.empty) return snapshot.docs[0].data();
+
+            return null;
+        }
+        
+        async function claimRadioHost() {
+            if (state.mode !== 'RADIO') {
+                addMessage('ERROR', 'YOU MUST BE TUNED INTO A RADIO CHANNEL.', false, false, true);
+                return;
+            }
+            
+            const frequency = currentChatPartner.frequency;
+            
+            try {
+                const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
+                const channelSnap = await getDoc(channelRef);
+
+                let admins = [];
+                if (channelSnap.exists()) {
+                    admins = channelSnap.data().admins || [];
+                }
+
+                if (admins.length > 0) {
+                    addMessage('ERROR', 'CHANNEL ALREADY HAS A HOST. ASK THEM TO ADD YOU.', false, false, true);
+                } else {
+                    // Claim
+                    await setDoc(channelRef, {
+                        admins: [currentUser.uid],
+                        banned: [],
+                        createdAt: serverTimestamp(),
+                        frequency: frequency
+                    }, { merge: true });
+                    addMessage('SYSTEM', 'SUCCESS. YOU ARE NOW THE SUPER ADMIN (*).', true);
+                }
+            } catch (e) {
+                addMessage('ERROR', 'CLAIM FAILED: ' + e.message, false, false, true);
+            }
+        }
+        
+        async function promoteUser(targetName) {
+            if (state.mode !== 'RADIO') return;
+            
+            // Check if user is an admin
+            if (!currentChannelAdmins.includes(currentUser.uid)) {
+                addMessage('ERROR', 'PERMISSION DENIED. ADMINS ONLY.', false, false, true);
+                return;
+            }
+
+            const targetUser = await resolveUserByNickOrEmail(targetName);
+            if (!targetUser) {
+                addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
+                return;
+            }
+
+            const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', currentChatPartner.frequency);
+            await updateDoc(channelRef, {
+                admins: arrayUnion(targetUser.uid)
+            });
+            addMessage('SYSTEM', `PROMOTED ${targetName} TO ADMIN.`, true);
+        }
+        
+        async function demoteUser(targetName) {
+            if (state.mode !== 'RADIO') return;
+            
+            // Check if user is an admin
+            if (!currentChannelAdmins.includes(currentUser.uid)) {
+                addMessage('ERROR', 'PERMISSION DENIED. ADMINS ONLY.', false, false, true);
+                return;
+            }
+
+            const targetUser = await resolveUserByNickOrEmail(targetName);
+            if (!targetUser) {
+                addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
+                return;
+            }
+
+            const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', currentChatPartner.frequency);
+            await updateDoc(channelRef, {
+                admins: arrayRemove(targetUser.uid)
+            });
+            addMessage('SYSTEM', `REMOVED ADMIN STATUS FROM ${targetName}.`, true);
+        }
+        
+        async function kickUser(targetName) {
+            if (state.mode !== 'RADIO') return;
+            
+            // Check if user is an admin
+            if (!currentChannelAdmins.includes(currentUser.uid)) {
+                addMessage('ERROR', 'PERMISSION DENIED. ADMINS ONLY.', false, false, true);
+                return;
+            }
+
+            const targetUser = await resolveUserByNickOrEmail(targetName);
+            if (!targetUser) {
+                addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
+                return;
+            }
+
+            const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', currentChatPartner.frequency);
+            await updateDoc(channelRef, {
+                banned: arrayUnion(targetUser.uid)
+            });
+            addMessage('SYSTEM', `KICKED AND BANNED ${targetName}.`, true);
+        }
+
+        async function unkickUser(targetName) {
+            if (state.mode !== 'RADIO') return;
+            
+            // Check if user is an admin
+            if (!currentChannelAdmins.includes(currentUser.uid)) {
+                addMessage('ERROR', 'PERMISSION DENIED. ADMINS ONLY.', false, false, true);
+                return;
+            }
+
+            const targetUser = await resolveUserByNickOrEmail(targetName);
+            if (!targetUser) {
+                addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
+                return;
+            }
+
+            const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', currentChatPartner.frequency);
+            await updateDoc(channelRef, {
+                banned: arrayRemove(targetUser.uid)
+            });
+            addMessage('SYSTEM', `UNBANNED ${targetName}.`, true);
+        }
+
+        async function showRadioHost() {
+            if (state.mode !== 'RADIO') {
+                addMessage('ERROR', 'YOU MUST BE TUNED INTO A RADIO CHANNEL.', false, false, true);
+                return;
+            }
+
+            const frequency = currentChatPartner.frequency;
+            addMessage('SYSTEM', `FETCHING ADMINS FOR ${frequency}...`, true);
+
+            try {
+                const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
+                const channelSnap = await getDoc(channelRef);
+
+                if (!channelSnap.exists() || !channelSnap.data().admins || channelSnap.data().admins.length === 0) {
+                    addMessage(null, 'NO ADMINS ASSIGNED.');
+                    return;
+                }
+
+                const adminIds = channelSnap.data().admins;
+                const bannedIds = channelSnap.data().banned || [];
+                
+                addMessage(null, `--- CHANNEL ADMINS ---`);
+                for (const uid of adminIds) {
+                    const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', uid);
+                    const profileSnap = await getDoc(profileRef);
+                    let name = "Unknown ID: " + uid;
+                    if (profileSnap.exists()) {
+                        name = profileSnap.data().displayName || profileSnap.data().email;
+                    }
+                    addMessage(null, `> ${name} (*)${uid === currentUser.uid ? ' [YOU]' : ''}`);
+                }
+
+                if (bannedIds.length > 0) {
+                    addMessage(null, `--- BANNED USERS ---`);
+                    addMessage(null, `> ${bannedIds.length} user(s) banned.`);
+                }
+
+            } catch (e) {
+                addMessage('ERROR', 'LOOKUP FAILED: ' + e.message, false, false, true);
+            }
+        }
+        
+        async function joinRadio(frequency) {
+            try {
+                currentChatPartner = { 
+                    type: 'radio', 
+                    frequency: frequency, 
+                    id: 'RADIO_' + frequency
+                };
+                
+                state.mode = 'RADIO';
+                history.innerHTML = ''; 
+                activeRadioParticipants = new Set(); // Reset participants
+                currentChannelAdmins = []; // Reset admins
+                
+                addMessage('SYSTEM', `--- TUNED TO FREQUENCY: ${frequency} MHz ---`, true);
+                addMessage('SYSTEM', `BROADCASTING OPEN. ANYONE CAN HEAR YOU.`, true);
+                updatePrompt(currentUser.email);
+
+                // --- Real-time Channel Meta Listener (Admins/Bans) ---
+                if (channelMetaUnsubscribe) channelMetaUnsubscribe();
+                const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
+                
+                // First, get the initial state of the channel
+                try {
+                    const channelSnap = await getDoc(channelRef);
+                    if (channelSnap.exists()) {
+                        const data = channelSnap.data();
+                        currentChannelAdmins = data.admins || [];
+                        
+                        // Check if banned
+                        if (data.banned && data.banned.includes(currentUser.uid)) {
+                            // Leave channel
+                            if (messagesUnsubscribe) messagesUnsubscribe();
+                            if (channelMetaUnsubscribe) channelMetaUnsubscribe();
+                            state.mode = 'COMMAND';
+                            currentChannelAdmins = [];
+                            history.innerHTML = '';
+                            addMessage('ERROR', 'CONNECTION TERMINATED. FREQUENCY BLOCKED.', false, false, true);
+                            updatePrompt(currentUser.email.split('@')[0]);
+                            return;
+                        }
+                    } else {
+                        currentChannelAdmins = [];
+                    }
+                } catch (error) {
+                    // If we can't read the channel metadata, start with empty admin list
+                    // This can happen if the channel doesn't exist yet or due to permission issues
+                    currentChannelAdmins = [];
+                    console.warn('Could not fetch initial channel metadata:', error.message);
+                }
+                
+                channelMetaUnsubscribe = onSnapshot(channelRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        currentChannelAdmins = data.admins || [];
+                        
+                        // Check if banned
+                        if (data.banned && data.banned.includes(currentUser.uid)) {
+                            // Leave channel
+                            if (messagesUnsubscribe) messagesUnsubscribe();
+                            if (channelMetaUnsubscribe) channelMetaUnsubscribe();
+                            state.mode = 'COMMAND';
+                            currentChannelAdmins = [];
+                            history.innerHTML = '';
+                            addMessage('ERROR', 'CONNECTION TERMINATED. FREQUENCY BLOCKED.', false, false, true);
+                            updatePrompt(currentUser.email.split('@')[0]);
+                            return;
+                        }
+                    } else {
+                        currentChannelAdmins = [];
+                    }
+                });
+
+                const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
+                // Query by conversation ID "RADIO_{freq}"
+                const qMsg = query(msgsRef, where('conversationId', '==', currentChatPartner.id), orderBy('timestamp', 'asc'));
+
+                if (messagesUnsubscribe) messagesUnsubscribe();
+
+                messagesUnsubscribe = onSnapshot(qMsg, (snapshot) => {
+                    snapshot.docChanges().forEach((change) => {
+                        if (change.type === "added") {
+                            const msg = change.doc.data();
+                            
+                            // Track participant for autocomplete
+                            if (msg.senderDisplayName) {
+                                activeRadioParticipants.add(msg.senderDisplayName);
+                            }
+
+                            let senderName = msg.senderDisplayName || 'UNKNOWN';
+                            if (msg.senderId === currentUser.uid) senderName = 'ME';
+                            
+                            // Check for host flag
+                            if (msg.isHost) {
+                                senderName += ' (*)';
+                            }
+                            
+                            addMessage(senderName, msg.text, false, false, false, msg.isAscii || false, change.doc.id, msg.burn, true);
+                        }
+                    });
+                }, (error) => {
+                     if(error.message.includes("index")) {
+                         addMessage('ERROR', 'INDEX REQUIRED. Check console.', false, false, true);
+                         console.error(error);
+                     }
+                });
+
+            } catch (error) {
+                addMessage('ERROR', 'RADIO ERROR: ' + error.message, false, false, true);
+            }
+        }
+        
         function getConversationId(uid1, uid2) {
             return [uid1, uid2].sort().join('_');
         }
-
-    </script>
-</body>
-</html>
