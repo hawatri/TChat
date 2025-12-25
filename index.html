@@ -2194,6 +2194,7 @@
             }
 
             finalBody = parseEmojis(finalBody);
+            finalBody = finalBody.replace(/\(\?n\)/g, '\n');
 
             await sendMessage(finalBody, isAscii, isBurn);
         }
