@@ -1560,7 +1560,7 @@
                 img.src = url;
                 
                 img.onload = () => {
-                    const cols = 100; // Increased width for better resolution
+                    const cols = 80; // Increased width for better resolution
                     const charAspect = 0.5; 
                     const aspect = img.height / img.width;
                     const rows = Math.floor(cols * aspect * charAspect);
