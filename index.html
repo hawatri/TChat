@@ -269,6 +269,77 @@
             color: var(--terminal-bg);
         }
 
+        /* --- Profile Editor Overlay --- */
+        #profile-editor-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 600px;
+            background-color: var(--terminal-bg);
+            border: 2px solid var(--terminal-main);
+            z-index: 50;
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            padding: 2px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.9);
+        }
+
+        .editor-header {
+            background-color: var(--terminal-main);
+            color: var(--terminal-bg);
+            text-align: center;
+            padding: 5px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .editor-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 10px;
+            border-bottom: 1px dotted rgba(51, 255, 0, 0.2);
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        .editor-row.active {
+            background-color: rgba(51, 255, 0, 0.2);
+        }
+        
+        .editor-row.editing .field-value {
+            background-color: var(--terminal-main);
+            color: var(--terminal-bg);
+            animation: blink-bg 1s infinite;
+        }
+
+        @keyframes blink-bg {
+             0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; }
+        }
+
+        .field-label { width: 30%; font-weight: bold; }
+        .field-value { width: 65%; white-space: pre-wrap; word-break: break-all; min-height: 1.5em; border-bottom: 1px dashed var(--terminal-main); }
+        
+        .editor-actions {
+            margin-top: 10px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            padding: 10px;
+        }
+
+        .action-btn {
+            border: 1px solid var(--terminal-main);
+            padding: 5px 15px;
+            cursor: pointer;
+        }
+        
+        .action-btn.active {
+            background-color: var(--terminal-main);
+            color: var(--terminal-bg);
+        }
+
         @keyframes flicker {
             0% { opacity: 0.97; } 50% { opacity: 0.99; } 100% { opacity: 0.94; }
         }
@@ -338,6 +409,35 @@
                 <button id="tab-btn">TAB</button>
             </div>
         </div>
+        
+        <!-- Profile Editor Overlay -->
+        <div id="profile-editor-overlay">
+            <div class="editor-header">:: T-OS PROFILE EDITOR UTILITY ::</div>
+            
+            <div class="editor-row" id="row-nick">
+                <span class="field-label">NICKNAME:</span>
+                <span class="field-value" id="edit-nick"></span>
+            </div>
+            
+            <div class="editor-row" id="row-bio">
+                <span class="field-label">BIO:</span>
+                <span class="field-value" id="edit-bio"></span>
+            </div>
+            
+            <div class="editor-row" id="row-avatar">
+                <span class="field-label">AVATAR:</span>
+                <span class="field-value" id="edit-avatar">[ PRESS SPACE TO UPLOAD ]</span>
+            </div>
+            
+            <div class="editor-actions">
+                <div class="action-btn" id="btn-save">[ SAVE CHANGES ]</div>
+                <div class="action-btn" id="btn-cancel">[ CANCEL ]</div>
+            </div>
+            
+            <div style="text-align: center; font-size: 0.8rem; margin-top: 10px; color: var(--system-color);">
+                [TAB] NAVIGATE | [SPACE] EDIT/UPLOAD | [ENTER] CONFIRM
+            </div>
+        </div>
     </div>
 
     <script type="module">
@@ -369,10 +469,10 @@
         let currentChatPartner = null; 
         let messagesUnsubscribe = null;
         const state = {
-            mode: 'COMMAND', 
+            mode: 'COMMAND', // COMMAND, CHAT, RADIO, PROFILE_EDIT
             muted: false,
-            booting: true, // Start in boot mode
-            theme: 'green' // Default theme
+            booting: true, 
+            theme: 'green'
         };
         
         // --- Command History ---
@@ -383,7 +483,7 @@
         const commandsList = [
             'help', 'login', 'logout', 'friend', 'friends', 'friends-email', 'chat', 'reqbox', 'radio',
             'burn', 'theme', 'ascii', 'mute', 'unmute', 
-            'clear', 'status', 'date', 'exit', 'emoji', 'ping', 'neofetch'
+            'clear', 'status', 'date', 'exit', 'emoji', 'ping', 'neofetch', 'set-bio', 'whois'
         ];
 
         const subCommands = {
@@ -550,10 +650,30 @@
         const cmdCursor = document.getElementById('cmd-cursor');
         const cmdAfter = document.getElementById('cmd-after');
         const autocompleteMenu = document.getElementById('autocomplete-menu');
-        const fileInput = document.getElementById('file-upload'); // Ref
+        const fileInput = document.getElementById('file-upload'); 
         const tabBtn = document.getElementById('tab-btn');
+        const editorOverlay = document.getElementById('profile-editor-overlay');
+
+        // Editor Refs
+        const editNick = document.getElementById('edit-nick');
+        const editBio = document.getElementById('edit-bio');
+        const editAvatar = document.getElementById('edit-avatar');
+        const editorElements = [
+            document.getElementById('row-nick'), 
+            document.getElementById('row-bio'), 
+            document.getElementById('row-avatar'),
+            document.getElementById('btn-save'),
+            document.getElementById('btn-cancel')
+        ];
+        
+        let editorSelection = 0;
+        let editorIsEditing = false;
+        let editorBuffer = '';
+        let editorAvatarBuffer = null;
 
         function updateInputDisplay() {
+            if (state.mode === 'PROFILE_EDIT') return; // Don't update main input display in edit mode
+
             const val = input.value;
             const selStart = input.selectionStart || 0;
             const left = val.substring(0, selStart);
@@ -572,8 +692,13 @@
         // --- Tab Button Logic ---
         tabBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            input.focus(); // Ensure keyboard stays up
-            handleTabCompletion({ preventDefault: () => {} });
+            if (state.mode === 'PROFILE_EDIT') {
+                // Simulate Tab for Editor
+                 handleProfileEditorKey('Tab');
+            } else {
+                input.focus(); 
+                handleTabCompletion({ preventDefault: () => {} });
+            }
         });
 
         // --- File Upload Handler ---
@@ -581,24 +706,38 @@
             const file = e.target.files[0];
             if (!file) return;
             
-            addMessage('SYSTEM', `PROCESSING IMAGE: ${file.name}...`, true);
+            // IF IN EDITOR MODE
+            if (state.mode === 'PROFILE_EDIT') {
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    try {
+                         const ascii = await convertImageToAscii(event.target.result);
+                         editorAvatarBuffer = ascii;
+                         editAvatar.textContent = "[ IMAGE SET (ASCII GENERATED) ]";
+                    } catch(e) {
+                         editAvatar.textContent = "[ ERROR CONVERTING ]";
+                    }
+                    fileInput.value = '';
+                };
+                reader.readAsDataURL(file);
+                return;
+            }
             
+            // NORMAL CHAT MODE
+            addMessage('SYSTEM', `PROCESSING IMAGE: ${file.name}...`, true);
             const reader = new FileReader();
             reader.onload = async (event) => {
                 try {
-                    // Use existing converter
                     const ascii = await convertImageToAscii(event.target.result);
-                    
                     if (state.mode === 'COMMAND') {
                         addMessage(null, ascii, false, false, false, true);
                     } else {
-                        // In Chat/Radio mode, send directly
                         await sendMessage(ascii, true, false); 
                     }
                 } catch(err) {
                     addMessage('ERROR', 'CONVERSION FAILED: ' + err.message, false, false, true);
                 }
-                fileInput.value = ''; // Reset
+                fileInput.value = ''; 
             };
             reader.readAsDataURL(file);
         });
@@ -777,6 +916,8 @@
             if (!currentUser || currentUser.isAnonymous) return;
             try {
                 const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', currentUser.uid);
+                
+                // Also update joinedAt if missing (legacy fix)
                 await setDoc(userRef, {
                     status: status,
                     lastSeen: serverTimestamp()
@@ -799,13 +940,21 @@
                     await updateStatus('online');
                     try {
                         const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', user.uid);
-                        await setDoc(userRef, {
+                        // Ensure basic profile exists
+                        const snap = await getDoc(userRef);
+                        const baseData = {
                             email: user.email,
                             displayName: user.displayName || user.email.split('@')[0],
                             uid: user.uid,
                             status: 'online',
                             lastSeen: serverTimestamp()
-                        }, { merge: true });
+                        };
+                        
+                        if (!snap.exists() || !snap.data().joinedAt) {
+                            baseData.joinedAt = serverTimestamp();
+                        }
+                        
+                        await setDoc(userRef, baseData, { merge: true });
                     } catch (e) {}
                 }
             } else {
@@ -952,7 +1101,18 @@
         }
 
         // --- Command Processing ---
+        
+        // --- Intercept Keys for Profile Editor ---
+        document.addEventListener('keydown', (event) => {
+            if (state.mode === 'PROFILE_EDIT') {
+                handleProfileEditorKey(event);
+                return;
+            }
+        });
+
         input.addEventListener('keydown', function(event) {
+            if (state.mode === 'PROFILE_EDIT') return; // Should be handled by document listener above but safety check
+
             SoundSys.init();
             
             if (event.key === 'Tab') {
@@ -1041,12 +1201,143 @@
         });
 
         document.addEventListener('click', (e) => { 
+            // Don't steal focus if in profile editor
+            if (state.mode === 'PROFILE_EDIT') return;
+
             input.focus(); 
             SoundSys.init();
             if (e.target !== autocompleteMenu && e.target.parentElement !== autocompleteMenu && e.target !== tabBtn) {
                 hideAutocomplete();
             }
         });
+
+        // --- Profile Editor Logic ---
+        function openProfileEditor() {
+            if (!ensureAuth()) return;
+            state.mode = 'PROFILE_EDIT';
+            editorOverlay.style.display = 'flex';
+            
+            // Load current data
+            const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', currentUser.uid);
+            getDoc(userRef).then(snap => {
+                if(snap.exists()) {
+                    const d = snap.data();
+                    editNick.textContent = d.displayName || '';
+                    editBio.textContent = d.bio || '';
+                    if (d.avatarAscii) {
+                        editorAvatarBuffer = d.avatarAscii;
+                        editAvatar.textContent = "[ IMAGE SET ]";
+                    }
+                }
+            });
+
+            editorSelection = 0;
+            editorIsEditing = false;
+            updateEditorVisuals();
+        }
+
+        function closeProfileEditor() {
+            state.mode = 'COMMAND';
+            editorOverlay.style.display = 'none';
+            editorIsEditing = false;
+            input.focus();
+        }
+
+        async function saveProfileEditor() {
+            addMessage('SYSTEM', 'SAVING PROFILE...', true);
+            const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', currentUser.uid);
+            
+            const dataToUpdate = {
+                displayName: editNick.textContent.trim(),
+                bio: editBio.textContent.trim(),
+            };
+            
+            if (editorAvatarBuffer) {
+                dataToUpdate.avatarAscii = editorAvatarBuffer;
+            }
+            
+            await setDoc(userRef, dataToUpdate, { merge: true });
+            
+            addMessage('SYSTEM', 'PROFILE UPDATED SUCCESSFULLY.', true);
+            closeProfileEditor();
+        }
+
+        function updateEditorVisuals() {
+            // Reset all
+            editorElements.forEach(el => {
+                el.classList.remove('active');
+                el.classList.remove('editing');
+            });
+
+            // Highlight selected
+            const currentEl = editorElements[editorSelection];
+            currentEl.classList.add('active');
+            
+            if (editorIsEditing) {
+                currentEl.classList.add('editing');
+            }
+        }
+
+        function handleProfileEditorKey(e) {
+            // If editing text, capture input
+            if (editorIsEditing) {
+                const currentEl = editorElements[editorSelection];
+                const valueSpan = currentEl.querySelector('.field-value');
+                
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    editorIsEditing = false;
+                    SoundSys.click();
+                    updateEditorVisuals();
+                    return;
+                }
+                
+                if (e.key === 'Backspace') {
+                    valueSpan.textContent = valueSpan.textContent.slice(0, -1);
+                    SoundSys.click();
+                    return;
+                }
+                
+                if (e.key.length === 1) {
+                    valueSpan.textContent += e.key;
+                    SoundSys.click();
+                    return;
+                }
+                return;
+            }
+
+            // Navigation
+            if (e.key === 'Tab' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                editorSelection = (editorSelection + 1) % editorElements.length;
+                SoundSys.blip();
+                updateEditorVisuals();
+            } else if (e.key === 'ArrowUp') {
+                 e.preventDefault();
+                 editorSelection = (editorSelection - 1 + editorElements.length) % editorElements.length;
+                 SoundSys.blip();
+                 updateEditorVisuals();
+            }
+            // Actions
+            else if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                SoundSys.click();
+                
+                if (editorSelection === 0 || editorSelection === 1) { // Nick / Bio
+                    editorIsEditing = true;
+                    updateEditorVisuals();
+                }
+                else if (editorSelection === 2) { // Avatar
+                     fileInput.click();
+                }
+                else if (editorSelection === 3) { // Save
+                     saveProfileEditor();
+                }
+                else if (editorSelection === 4) { // Cancel
+                     closeProfileEditor();
+                }
+            }
+        }
 
         // --- ASCII Art Processor ---
         async function fetchAscii(url) {
@@ -1116,6 +1407,8 @@
                     addMessage('SYSTEM', 'COMMANDS:', true);
                     addMessage(null, '  login            - Sign in with Google');
                     addMessage(null, '  logout           - Sign out');
+                    addMessage(null, '  set-bio          - Open Profile Editor');
+                    addMessage(null, '  whois [email]    - View User Profile');
                     addMessage(null, '  friend add [email]     - Add friend');
                     addMessage(null, '  friend nick [email] [nick] - Set nickname');
                     addMessage(null, '  friends          - List friends');
@@ -1137,6 +1430,19 @@
 
                 case 'clear':
                     history.innerHTML = '';
+                    break;
+
+                case 'set-bio':
+                    openProfileEditor();
+                    break;
+
+                case 'whois':
+                    if (args[0]) {
+                        await runWhois(args[0]);
+                    } else {
+                        // If no arg, show self
+                        await runWhois(currentUser.email);
+                    }
                     break;
 
                 case 'emoji':
@@ -1298,6 +1604,49 @@
         }
 
         // --- Feature Implementation ---
+
+        async function runWhois(identifier) {
+            addMessage('SYSTEM', `QUERYING DIRECTORY FOR: ${identifier}...`, true);
+            
+            try {
+                const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
+                // Try Exact Match
+                let q = query(usersRef, where("email", "==", identifier));
+                let snapshot = await getDocs(q);
+                
+                // Fallback: Try Nickname (local friend logic not applied here for global whois, simplifying)
+                if (snapshot.empty) {
+                     // Try nickname search if we implemented public nicknames, but for now strict email
+                     addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
+                     return;
+                }
+                
+                const d = snapshot.docs[0].data();
+                const joined = d.joinedAt ? new Date(d.joinedAt.seconds * 1000).toLocaleDateString() : 'Unknown';
+                const status = d.status ? d.status.toUpperCase() : 'OFFLINE';
+                
+                addMessage(null, `+-----------------------------------------+`);
+                addMessage(null, `| USER:   ${d.displayName || d.email}`);
+                addMessage(null, `| EMAIL:  ${d.email}`);
+                addMessage(null, `| STATUS: ${status}`);
+                addMessage(null, `| SINCE:  ${joined}`);
+                addMessage(null, `+-----------------------------------------+`);
+                
+                if (d.bio) {
+                    addMessage(null, `BIO:\n${d.bio}`);
+                    addMessage(null, `+-----------------------------------------+`);
+                }
+                
+                if (d.avatarAscii) {
+                    addMessage(null, `AVATAR:`);
+                    addMessage(null, d.avatarAscii, false, false, false, true);
+                    addMessage(null, `+-----------------------------------------+`);
+                }
+
+            } catch(e) {
+                 addMessage('ERROR', 'WHOIS FAILED: ' + e.message, false, false, true);
+            }
+        }
 
         function runNeofetch() {
             const now = performance.now();
