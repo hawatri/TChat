@@ -710,8 +710,6 @@
             r.style.setProperty('--chat-color', theme.chat);
             r.style.setProperty('--error-color', theme.error);
             if(theme.radio) r.style.setProperty('--radio-color', theme.radio);
-            
-            state.theme = themeName; // Track current theme
             return true;
         }
 
@@ -1124,9 +1122,7 @@
                 promptSpan.textContent = `[CHAT:${name}] >`;
                 input.style.caretColor = 'var(--chat-color)';
             } else if (state.mode === 'RADIO') {
-                // Check if admin
-                const adminSuffix = currentChannelAdmins.includes(currentUser?.uid) ? '(*)' : '';
-                promptSpan.textContent = `[RADIO:${currentChatPartner.frequency}${adminSuffix}] >`;
+                promptSpan.textContent = `[RADIO:${currentChatPartner.frequency}] >`;
                 input.style.caretColor = 'var(--radio-color)';
             } else {
                 promptSpan.textContent = `${username}@TChat:~$`;
@@ -1635,6 +1631,9 @@
                     addMessage('SYSTEM', 'COMMANDS:', true);
                     addMessage(null, '  login            - Sign in with Google');
                     addMessage(null, '  logout           - Sign out');
+                    addMessage(null, '  set-bio          - Open Profile Editor');
+                    addMessage(null, '  whois [email]    - View User Profile');
+                    addMessage(null, '  mentions         - Check tags/mentions');
                     addMessage(null, '  friend add [email]     - Add friend');
                     addMessage(null, '  friend nick [email] [nick] - Set nickname');
                     addMessage(null, '  friends          - List friends');
@@ -1643,9 +1642,18 @@
                     addMessage(null, '  status [mode]    - online/away/busy');
                     addMessage(null, '  chat [name/email] - Start chat');
                     addMessage(null, '  radio [freq]     - Join broadcast freq');
+                    addMessage(null, '  host             - Claim Radio Host (*)');
+                    addMessage(null, '  host [name]      - Add Admin (Host only)');
+                    addMessage(null, '  unhost [name]    - Remove Admin (Host only)');
+                    addMessage(null, '  kick [name]      - Ban User (Admin only)');
+                    addMessage(null, '  unkick [name]    - Unban User (Admin only)');
+                    addMessage(null, '  host-list        - Show Admins');
+                    addMessage(null, '  ping [email]     - Check user availability');
+                    addMessage(null, '  neofetch         - Display system info');
                     addMessage(null, '  burn [msg]       - Send self-destruct msg');
                     addMessage(null, '  theme [color]    - Set color');
-                    addMessage(null, '  ascii [url]      - Render ASCII');
+                    addMessage(null, '  ascii [url]      - Render ASCII (Image or Text)');
+                    addMessage(null, '                     Type "ascii" with no url to upload.'); // Updated Help
                     addMessage(null, '  emoji            - List emoji codes');
                     addMessage(null, '  mute / unmute    - Toggle sounds');
                     addMessage(null, '  clear            - Clear screen');
@@ -1653,6 +1661,74 @@
 
                 case 'clear':
                     history.innerHTML = '';
+                    break;
+
+                case 'host':
+                    if (args.length > 0) {
+                        // Promote logic: host @name or host name
+                        let target = args.join(' ');
+                        // Remove @() if present
+                        const match = target.match(/@\((.*?)\)/);
+                        if(match) target = match[1];
+                        await promoteUser(target);
+                    } else {
+                        // Claim logic
+                        await claimRadioHost();
+                    }
+                    break;
+
+                case 'unhost':
+                    if (args.length > 0) {
+                        let target = args.join(' ');
+                        const match = target.match(/@\((.*?)\)/);
+                        if(match) target = match[1];
+                        await demoteUser(target);
+                    } else {
+                        addMessage('SYSTEM', 'USAGE: unhost [username]', true);
+                    }
+                    break;
+
+                case 'kick':
+                    if (args.length > 0) {
+                        let target = args.join(' ');
+                        const match = target.match(/@\((.*?)\)/);
+                        if(match) target = match[1];
+                        await kickUser(target);
+                    } else {
+                        addMessage('SYSTEM', 'USAGE: kick [username]', true);
+                    }
+                    break;
+
+                case 'unkick':
+                    if (args.length > 0) {
+                        let target = args.join(' ');
+                        const match = target.match(/@\((.*?)\)/);
+                        if(match) target = match[1];
+                        await unkickUser(target);
+                    } else {
+                        addMessage('SYSTEM', 'USAGE: unkick [username]', true);
+                    }
+                    break;
+
+                case 'host-list':
+                    await showRadioHost();
+                    break;
+
+                case 'set-bio':
+                    openProfileEditor();
+                    break;
+
+                case 'whois':
+                    if (args[0]) {
+                        await runWhois(args[0]);
+                    } else {
+                        // If no arg, show self
+                        await runWhois(currentUser.email);
+                    }
+                    break;
+
+                case 'mentions':
+                    await showRecentMentions();
                     break;
 
                 case 'emoji':
@@ -1696,15 +1772,14 @@
                     if (args[0]) {
                         addMessage('SYSTEM', `FETCHING ASCII FROM ${args[0]}...`, true);
                         try {
-                            const response = await fetch(args[0]);
-                            if (!response.ok) throw new Error("Network error");
-                            const text = await response.text();
-                            addMessage(null, text, false, false, false, true);
+                            const asciiArt = await fetchAscii(args[0]);
+                            addMessage(null, asciiArt, false, false, false, true);
                         } catch (e) {
                             addMessage('ERROR', `FAILED: ${e.message}`, false, false, true);
                         }
                     } else {
-                        addMessage('SYSTEM', 'USAGE: ascii [url]', true);
+                        // No URL provided -> Trigger Upload
+                        fileInput.click();
                     }
                     break;
 
@@ -1785,6 +1860,19 @@
                     addMessage('SYSTEM', new Date().toString(), true);
                     break;
 
+                case 'neofetch':
+                    runNeofetch();
+                    break;
+
+                case 'ping':
+                    if (!ensureAuth()) return;
+                    if (args[0]) {
+                        await pingUser(args[0]);
+                    } else {
+                        addMessage('SYSTEM', 'USAGE: ping [email]', true);
+                    }
+                    break;
+
                 case 'exit':
                     break;
 
@@ -1819,12 +1907,6 @@
             return null;
         }
 
-        // Helper to get meta doc ref
-        function getChannelMetaRef(frequency) {
-            // We use a specific ID pattern 'META_channel_[freq]' inside the 'messages' collection
-            return doc(db, 'artifacts', appId, 'public', 'data', 'messages', 'META_channel_' + frequency);
-        }
-
         async function claimRadioHost() {
             if (state.mode !== 'RADIO') {
                 addMessage('ERROR', 'YOU MUST BE TUNED INTO A RADIO CHANNEL.', false, false, true);
@@ -1834,8 +1916,7 @@
             const frequency = currentChatPartner.frequency;
             
             try {
-                // Use messages collection for meta
-                const channelRef = getChannelMetaRef(frequency);
+                const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
                 const channelSnap = await getDoc(channelRef);
 
                 let admins = [];
@@ -1847,20 +1928,15 @@
                     addMessage('ERROR', 'CHANNEL ALREADY HAS A HOST. ASK THEM TO ADD YOU.', false, false, true);
                 } else {
                     // Claim
-                    // Include dummy fields to pass security rules that might check for 'text' or 'senderId'
                     await setDoc(channelRef, {
                         admins: [currentUser.uid],
                         banned: [],
                         createdAt: serverTimestamp(),
-                        frequency: frequency,
-                        text: "METADATA_CHANNEL_CONFIG", // Dummy field for rules
-                        senderId: "SYSTEM", // Dummy field for rules
-                        isMeta: true
+                        frequency: frequency
                     }, { merge: true });
                     addMessage('SYSTEM', 'SUCCESS. YOU ARE NOW THE SUPER ADMIN (*).', true);
                 }
             } catch (e) {
-                console.error("Host Claim Error:", e);
                 addMessage('ERROR', 'CLAIM FAILED: ' + e.message, false, false, true);
             }
         }
@@ -1878,15 +1954,11 @@
                 return;
             }
 
-            try {
-                const channelRef = getChannelMetaRef(currentChatPartner.frequency);
-                await updateDoc(channelRef, {
-                    admins: arrayUnion(targetUser.uid)
-                });
-                addMessage('SYSTEM', `PROMOTED ${targetName} TO ADMIN.`, true);
-            } catch (e) {
-                addMessage('ERROR', 'PROMOTE FAILED: ' + e.message, false, false, true);
-            }
+            const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', currentChatPartner.frequency);
+            await updateDoc(channelRef, {
+                admins: arrayUnion(targetUser.uid)
+            });
+            addMessage('SYSTEM', `PROMOTED ${targetName} TO ADMIN.`, true);
         }
 
         async function demoteUser(targetName) {
@@ -1902,15 +1974,11 @@
                 return;
             }
 
-            try {
-                const channelRef = getChannelMetaRef(currentChatPartner.frequency);
-                await updateDoc(channelRef, {
-                    admins: arrayRemove(targetUser.uid)
-                });
-                addMessage('SYSTEM', `REMOVED ADMIN STATUS FROM ${targetName}.`, true);
-            } catch(e) {
-                addMessage('ERROR', 'DEMOTE FAILED: ' + e.message, false, false, true);
-            }
+            const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', currentChatPartner.frequency);
+            await updateDoc(channelRef, {
+                admins: arrayRemove(targetUser.uid)
+            });
+            addMessage('SYSTEM', `REMOVED ADMIN STATUS FROM ${targetName}.`, true);
         }
 
         async function kickUser(targetName) {
@@ -1926,15 +1994,11 @@
                 return;
             }
 
-            try {
-                const channelRef = getChannelMetaRef(currentChatPartner.frequency);
-                await updateDoc(channelRef, {
-                    banned: arrayUnion(targetUser.uid)
-                });
-                addMessage('SYSTEM', `KICKED AND BANNED ${targetName}.`, true);
-            } catch(e) {
-                addMessage('ERROR', 'KICK FAILED: ' + e.message, false, false, true);
-            }
+            const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', currentChatPartner.frequency);
+            await updateDoc(channelRef, {
+                banned: arrayUnion(targetUser.uid)
+            });
+            addMessage('SYSTEM', `KICKED AND BANNED ${targetName}.`, true);
         }
 
         async function unkickUser(targetName) {
@@ -1950,15 +2014,11 @@
                 return;
             }
 
-            try {
-                const channelRef = getChannelMetaRef(currentChatPartner.frequency);
-                await updateDoc(channelRef, {
-                    banned: arrayRemove(targetUser.uid)
-                });
-                addMessage('SYSTEM', `UNBANNED ${targetName}.`, true);
-            } catch(e) {
-                addMessage('ERROR', 'UNKICK FAILED: ' + e.message, false, false, true);
-            }
+            const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', currentChatPartner.frequency);
+            await updateDoc(channelRef, {
+                banned: arrayRemove(targetUser.uid)
+            });
+            addMessage('SYSTEM', `UNBANNED ${targetName}.`, true);
         }
 
         async function showRadioHost() {
@@ -1971,7 +2031,7 @@
             addMessage('SYSTEM', `FETCHING ADMINS FOR ${frequency}...`, true);
 
             try {
-                const channelRef = getChannelMetaRef(frequency);
+                const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
                 const channelSnap = await getDoc(channelRef);
 
                 if (!channelSnap.exists() || !channelSnap.data().admins || channelSnap.data().admins.length === 0) {
@@ -2004,6 +2064,158 @@
         }
 
         // --- Feature Implementation ---
+
+        async function showRecentMentions() {
+            if (!ensureAuth()) return;
+            addMessage('SYSTEM', 'FETCHING RECENT MENTIONS...', true);
+            
+            try {
+                const notifRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'notifications');
+                const q = query(notifRef, orderBy('timestamp', 'desc'), limit(10));
+                const snap = await getDocs(q);
+                
+                if (snap.empty) {
+                    addMessage(null, 'NO RECENT MENTIONS FOUND.');
+                    return;
+                }
+                
+                snap.forEach(doc => {
+                    const data = doc.data();
+                    const time = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleTimeString() : '??:??';
+                    addMessage(null, `[${time}] ${data.fromName}: ${data.preview}`);
+                });
+                
+            } catch(e) {
+                addMessage('ERROR', 'FAILED: ' + e.message, false, false, true);
+            }
+        }
+
+        async function runWhois(identifier) {
+            addMessage('SYSTEM', `QUERYING DIRECTORY FOR: ${identifier}...`, true);
+            
+            try {
+                const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
+                // Try Exact Match
+                let q = query(usersRef, where("email", "==", identifier));
+                let snapshot = await getDocs(q);
+                
+                // Fallback: Try Nickname (local friend logic not applied here for global whois, simplifying)
+                if (snapshot.empty) {
+                     // Try nickname search if we implemented public nicknames, but for now strict email
+                     addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
+                     return;
+                }
+                
+                const d = snapshot.docs[0].data();
+                const joined = d.joinedAt ? new Date(d.joinedAt.seconds * 1000).toLocaleDateString() : 'Unknown';
+                const status = d.status ? d.status.toUpperCase() : 'OFFLINE';
+                
+                addMessage(null, `+-----------------------------------------+`);
+                addMessage(null, `| USER:   ${d.displayName || d.email}`);
+                addMessage(null, `| EMAIL:  ${d.email}`);
+                addMessage(null, `| STATUS: ${status}`);
+                addMessage(null, `| SINCE:  ${joined}`);
+                addMessage(null, `+-----------------------------------------+`);
+                
+                if (d.bio) {
+                    addMessage(null, `BIO:\n${d.bio}`);
+                    addMessage(null, `+-----------------------------------------+`);
+                }
+                
+                if (d.avatarAscii) {
+                    addMessage(null, `AVATAR:`);
+                    addMessage(null, d.avatarAscii, false, false, false, true);
+                    addMessage(null, `+-----------------------------------------+`);
+                }
+
+            } catch(e) {
+                 addMessage('ERROR', 'WHOIS FAILED: ' + e.message, false, false, true);
+            }
+        }
+
+        function runNeofetch() {
+            const now = performance.now();
+            const uptimeMins = Math.floor(now / 60000);
+            const uptimeSecs = Math.floor((now % 60000) / 1000);
+            
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            
+            // Simplified User Agent parsing
+            let os = 'Unknown OS';
+            if (navigator.userAgent.indexOf("Win") != -1) os = "Windows";
+            if (navigator.userAgent.indexOf("Mac") != -1) os = "MacOS";
+            if (navigator.userAgent.indexOf("Linux") != -1) os = "Linux";
+            if (navigator.userAgent.indexOf("Android") != -1) os = "Android";
+            if (navigator.userAgent.indexOf("like Mac") != -1) os = "iOS";
+
+            let browser = 'Unknown Browser';
+            if (navigator.userAgent.indexOf("Chrome") != -1) browser = "Chrome";
+            if (navigator.userAgent.indexOf("Firefox") != -1) browser = "Firefox";
+            if (navigator.userAgent.indexOf("Safari") != -1 && navigator.userAgent.indexOf("Chrome") == -1) browser = "Safari";
+
+            const user = currentUser ? (currentUser.displayName || currentUser.email.split('@')[0]) : 'guest';
+            const authStatus = currentUser && !currentUser.isAnonymous ? 'Authenticated' : 'Anonymous';
+            const email = currentUser && !currentUser.isAnonymous ? currentUser.email : 'N/A';
+
+            const logo = [
+                "   _______   ",
+                "  |__   __|  ",
+                "     | |     ",
+                "     | |     ",
+                "     | |     ",
+                "     |_|     "
+            ];
+
+            const info = [
+                `USER:    ${user}@tchat`,
+                `--------`,
+                `OS:      ${os} (Web Kernel)`,
+                `BROWSER: ${browser}`,
+                `UPTIME:  ${uptimeMins}m ${uptimeSecs}s`,
+                `RES:     ${width}x${height}`,
+                `THEME:   ${state.theme}`,
+                `STATUS:  ${authStatus}`,
+                `EMAIL:   ${email}`
+            ];
+
+            let output = "";
+            const logoWidth = 16;
+            const maxLines = Math.max(logo.length, info.length);
+            
+            for(let i=0; i<maxLines; i++) {
+                const logoLine = (logo[i] || "").padEnd(logoWidth, " ");
+                const infoLine = info[i] || "";
+                output += `${logoLine}  ${infoLine}\n`;
+            }
+
+            // Color bar at the bottom
+            output += "\n   \u001b[31m███\u001b[32m███\u001b[33m███\u001b[34m███\u001b[35m███\u001b[36m███";
+            
+            addMessage(null, output, false, false, false, true);
+        }
+
+        async function pingUser(targetEmail) {
+            addMessage('SYSTEM', `PINGING ${targetEmail}...`, true);
+            const start = Date.now();
+            try {
+                const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
+                const q = query(usersRef, where("email", "==", targetEmail));
+                const snapshot = await getDocs(q);
+                
+                const ms = Date.now() - start;
+
+                if (!snapshot.empty) {
+                    const data = snapshot.docs[0].data();
+                    const status = data.status ? data.status.toUpperCase() : 'UNKNOWN';
+                    addMessage('SYSTEM', `REPLY FROM ${targetEmail}: status=${status} time=${ms}ms`, true);
+                } else {
+                    addMessage('ERROR', `REQUEST TIMED OUT: ${targetEmail} not found.`, false, false, true);
+                }
+            } catch (error) {
+                addMessage('ERROR', 'PING ERROR: ' + error.message, false, false, true);
+            }
+        }
 
         async function addFriend(targetEmail) {
             addMessage('SYSTEM', `SEARCHING...`, true);
@@ -2202,8 +2414,7 @@
 
                 // --- Real-time Channel Meta Listener (Admins/Bans) ---
                 if (channelMetaUnsubscribe) channelMetaUnsubscribe();
-                // FIX: Listen to messages/META_channel_[freq]
-                const channelRef = getChannelMetaRef(frequency);
+                const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
                 
                 channelMetaUnsubscribe = onSnapshot(channelRef, (docSnap) => {
                     if (docSnap.exists()) {
@@ -2224,9 +2435,6 @@
                     } else {
                         currentChannelAdmins = [];
                     }
-                }, (err) => {
-                    // Fail silently for meta listener, allows users to chat even if radio_channels is restricted
-                    console.log("Meta channel access restricted or unavailable:", err.code);
                 });
 
                 const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
@@ -2368,55 +2576,6 @@
                 addMessage('SYSTEM', 'DISCONNECTED.', true);
                 updatePrompt(currentUser.email.split('@')[0]);
                 return;
-            }
-
-            // FIX: Handle Admin Commands inside Chat/Radio Mode
-            if (state.mode === 'RADIO') {
-                const parts = text.split(' ');
-                const cmd = parts[0].toLowerCase();
-                const args = parts.slice(1);
-
-                try {
-                    if (cmd === 'host') {
-                        if (args.length > 0) {
-                            let target = args.join(' ');
-                            const match = target.match(/@\((.*?)\)/);
-                            if(match) target = match[1];
-                            await promoteUser(target);
-                        } else {
-                            await claimRadioHost();
-                        }
-                        return; // Stop processing as chat msg
-                    }
-                    if (cmd === 'unhost' && args.length > 0) {
-                        let target = args.join(' ');
-                        const match = target.match(/@\((.*?)\)/);
-                        if(match) target = match[1];
-                        await demoteUser(target);
-                        return;
-                    }
-                    if (cmd === 'kick' && args.length > 0) {
-                        let target = args.join(' ');
-                        const match = target.match(/@\((.*?)\)/);
-                        if(match) target = match[1];
-                        await kickUser(target);
-                        return;
-                    }
-                    if (cmd === 'unkick' && args.length > 0) {
-                        let target = args.join(' ');
-                        const match = target.match(/@\((.*?)\)/);
-                        if(match) target = match[1];
-                        await unkickUser(target);
-                        return;
-                    }
-                    if (cmd === 'host-list') {
-                        await showRadioHost();
-                        return;
-                    }
-                } catch(e) {
-                    addMessage('ERROR', 'COMMAND ERROR: ' + e.message, false, false, true);
-                    return;
-                }
             }
 
             // Trigger upload from chat
