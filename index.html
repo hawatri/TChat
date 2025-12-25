@@ -146,13 +146,22 @@
 
         .ascii-art {
             white-space: pre;
-            font-size: 0.6rem; /* Slightly smaller font for denser art */
+            font-size: 0.6rem; /* Small font for high density */
             line-height: 0.6rem;
-            overflow-x: auto;
+            overflow-x: auto; /* Allow scrolling if needed */
             color: var(--terminal-main);
             margin: 10px 0;
             display: block;
-            font-family: monospace; /* Ensure purely monospaced alignment */
+            font-family: monospace;
+            
+            /* Hide scrollbar visuals */
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none;  /* IE 10+ */
+        }
+        
+        /* Hide scrollbar for Chrome/Safari/Opera */
+        .ascii-art::-webkit-scrollbar { 
+            display: none;
         }
 
         .system-msg { color: var(--system-color); text-shadow: 0 0 4px var(--system-color); }
@@ -1379,8 +1388,10 @@
             addMessage('SYSTEM', 'SAVING PROFILE...', true);
             const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', currentUser.uid);
             
+            const rawNick = editNick.textContent.trim();
             const dataToUpdate = {
-                displayName: editNick.textContent.trim(),
+                displayName: rawNick,
+                displayNameLower: rawNick.toLowerCase(), // Add this for easier search later
                 bio: editBio.textContent.trim(),
             };
             
@@ -1560,7 +1571,7 @@
                 img.src = url;
                 
                 img.onload = () => {
-                    const cols = 80; // Increased width for better resolution
+                    const cols = 100; // Increased width for better resolution
                     const charAspect = 0.5; 
                     const aspect = img.height / img.width;
                     const rows = Math.floor(cols * aspect * charAspect);
