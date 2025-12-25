@@ -152,7 +152,7 @@
 
         .input-line {
             display: flex;
-            align-items: baseline; /* FIX: Aligns prompt and cursor perfectly */
+            align-items: flex-start; /* Aligns prompt to top when text wraps */
             border-top: 1px dashed rgba(51, 255, 0, 0.3);
             padding-top: 15px;
             padding-bottom: 5px;
@@ -167,8 +167,8 @@
         .prompt { 
             margin-right: 15px; 
             font-weight: bold; 
-            margin-top: 0; /* FIX: Removed top margin */
             white-space: nowrap;
+            line-height: 1.5rem; /* Match input line-height */
         }
 
         .cmd-wrapper {
@@ -216,6 +216,7 @@
             display: block; 
             width: 100%;
             overflow: visible;
+            min-height: 1.5rem;
         }
 
         #cmd-cursor {
@@ -225,7 +226,7 @@
             min-width: 1ch;
             display: inline-block;
             text-align: center;
-            vertical-align: baseline; /* FIX: Sit on line */
+            vertical-align: text-bottom;
             line-height: 1;
         }
 
@@ -288,6 +289,7 @@
             justify-content: center;
             user-select: none;
             margin-top: 0;
+            align-self: flex-end; /* Stick to bottom of input line */
         }
 
         #tab-btn:active {
@@ -447,9 +449,8 @@
                     <!-- Switched to Textarea for multiline -->
                     <textarea id="command-input" rows="1" spellcheck="false" autocomplete="off"></textarea>
                     <input type="file" id="file-upload" accept="image/*" style="display:none">
-                    <div id="cmd-display">
-                        <span id="cmd-before"></span><span id="cmd-cursor">&nbsp;</span><span id="cmd-after"></span>
-                    </div>
+                    <!-- FIX: Removed all whitespace between spans -->
+                    <div id="cmd-display"><span id="cmd-before"></span><span id="cmd-cursor">&nbsp;</span><span id="cmd-after"></span></div>
                 </div>
                 <!-- Tab Button for Android/Touch Devices -->
                 <button id="tab-btn">TAB</button>
@@ -681,8 +682,6 @@
             r.style.setProperty('--chat-color', theme.chat);
             r.style.setProperty('--error-color', theme.error);
             if(theme.radio) r.style.setProperty('--radio-color', theme.radio);
-            
-            state.theme = themeName; // Track current theme
             return true;
         }
 
