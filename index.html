@@ -146,12 +146,13 @@
 
         .ascii-art {
             white-space: pre;
-            font-size: 0.8rem;
-            line-height: 1rem;
+            font-size: 0.6rem; /* Slightly smaller font for denser art */
+            line-height: 0.6rem;
             overflow-x: auto;
             color: var(--terminal-main);
             margin: 10px 0;
             display: block;
+            font-family: monospace; /* Ensure purely monospaced alignment */
         }
 
         .system-msg { color: var(--system-color); text-shadow: 0 0 4px var(--system-color); }
@@ -1559,8 +1560,8 @@
                 img.src = url;
                 
                 img.onload = () => {
-                    const cols = 60; // Width in characters
-                    const charAspect = 0.5; // Characters are taller than wide
+                    const cols = 100; // Increased width for better resolution
+                    const charAspect = 0.5; 
                     const aspect = img.height / img.width;
                     const rows = Math.floor(cols * aspect * charAspect);
                     
@@ -1574,7 +1575,8 @@
                     try {
                         const data = ctx.getImageData(0, 0, cols, rows).data;
                         let ascii = "";
-                        const chars = " .:-=+*#%@"; // Simple gradient
+                        // Denser character ramp for smoother shading
+                        const chars = " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$";
                         
                         for (let y = 0; y < rows; y++) {
                             for (let x = 0; x < cols; x++) {
