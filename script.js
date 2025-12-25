@@ -1369,7 +1369,30 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
                     break;
 
                 case 'exit':
-                    break;
+            // Check if we are actually in a mode to exit from
+            if (state.mode === 'CHAT' || state.mode === 'RADIO') {
+                
+                // 1. Detach Listeners (Stop listening for new messages)
+                if (messagesUnsubscribe) messagesUnsubscribe();
+                if (channelMetaUnsubscribe) channelMetaUnsubscribe();
+                messagesUnsubscribe = null;
+                channelMetaUnsubscribe = null;
+                
+                // 2. Reset State
+                state.mode = 'COMMAND';
+                currentChatPartner = null;
+                
+                // 3. Clear Screen and Notify
+                history.innerHTML = ''; 
+                addMessage('SYSTEM', 'DISCONNECTED.', true);
+                
+                // 4. Restore the Command Prompt
+                const name = currentUser && !currentUser.isAnonymous 
+                    ? (currentUser.displayName || currentUser.email.split('@')[0]) 
+                    : 'guest';
+                updatePrompt(name);
+            }
+            break;
 
                 default:
                     addMessage('SYSTEM', `UNKNOWN COMMAND: ${cmd}`, true);
