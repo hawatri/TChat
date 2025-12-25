@@ -511,7 +511,8 @@
         import { getFirestore, collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, setDoc, doc, getDocs, getDoc, deleteDoc, limit, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Configuration ---
-        const appId = 'tchat-terminal'; 
+        // CRITICAL FIX: Use the system provided ID to avoid permission errors
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'tchat-terminal';
         
         const firebaseConfig = {
             apiKey: "AIzaSyCc4hgOZCeHnBgcwHk7mWMaQEbjodVLuc4",
@@ -2524,18 +2525,6 @@
                             const tb = b.timestamp ? b.timestamp.seconds : 0;
                             return ta - tb;
                         });
-                        
-                        // Clear history and redraw (efficient enough for terminal text)
-                        // Actually, to avoid flicker, let's just append new ones if we can,
-                        // but since we receive them potentially out of order without the index, 
-                        // we need to be careful. 
-                        // For this terminal style, simple append usually works if they arrive roughly in order,
-                        // but a full sort is safer.
-                        
-                        // Optimization: Only append the ones we haven't rendered? 
-                        // Simplified: Just render the last added one if it's new. 
-                        // BUT, without orderBy, snapshot might give old messages in random order.
-                        // So we MUST sort.
                         
                         history.innerHTML = ''; // Clear
                         allMessages.forEach(msg => {
