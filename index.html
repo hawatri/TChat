@@ -146,17 +146,23 @@
 
         .ascii-art {
             white-space: pre;
-            font-size: 0.6rem;
+            font-size: 0.6rem; /* Small font for high density */
             line-height: 0.6rem;
-            overflow-x: auto;
+            overflow-x: auto; /* Allow scrolling if needed */
             color: var(--terminal-main);
             margin: 10px 0;
             display: block;
             font-family: monospace;
-            scrollbar-width: none;
+            
+            /* Hide scrollbar visuals */
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none;  /* IE 10+ */
         }
         
-        .ascii-art::-webkit-scrollbar { display: none; }
+        /* Hide scrollbar for Chrome/Safari/Opera */
+        .ascii-art::-webkit-scrollbar { 
+            display: none;
+        }
 
         .system-msg { color: var(--system-color); text-shadow: 0 0 4px var(--system-color); }
         .chat-msg { color: var(--chat-color); text-shadow: 0 0 4px var(--chat-color); }
@@ -290,6 +296,7 @@
             color: var(--terminal-bg);
         }
 
+        /* --- TAB Button Styling --- */
         #tab-btn {
             background: transparent;
             border: 1px solid var(--terminal-main);
@@ -308,7 +315,7 @@
             justify-content: center;
             user-select: none;
             margin-top: 0;
-            align-self: flex-end; 
+            align-self: flex-end; /* Stick to bottom of input line */
         }
 
         #tab-btn:active {
@@ -316,28 +323,22 @@
             color: var(--terminal-bg);
         }
 
-        /* --- Generic Overlay Styling --- */
-        .utility-overlay {
+        /* --- Profile Editor Overlay --- */
+        #profile-editor-overlay {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             width: 90%;
-            max-width: 700px;
-            max-height: 80vh;
+            max-width: 600px;
             background-color: var(--terminal-bg);
             border: 2px solid var(--terminal-main);
             z-index: 50;
-            display: none;
+            display: none; /* Hidden by default */
             flex-direction: column;
             padding: 2px;
             box-shadow: 0 0 20px rgba(0,0,0,0.9);
-            overflow-y: auto;
         }
-        
-        .utility-overlay::-webkit-scrollbar { width: 8px; }
-        .utility-overlay::-webkit-scrollbar-track { background: #000; }
-        .utility-overlay::-webkit-scrollbar-thumb { background-color: var(--terminal-main); }
 
         .editor-header {
             background-color: var(--terminal-main);
@@ -346,14 +347,12 @@
             padding: 5px;
             font-weight: bold;
             margin-bottom: 10px;
-            flex-shrink: 0;
         }
 
-        /* --- Profile & Post Editor Styles --- */
         .editor-row {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
+            align-items: center; /* Better vertical alignment with input */
             padding: 8px 10px;
             border-bottom: 1px dotted rgba(51, 255, 0, 0.2);
             font-size: 1.2rem;
@@ -361,17 +360,26 @@
             user-select: none; 
         }
 
-        .editor-row.active { background-color: rgba(51, 255, 0, 0.2); }
-        .field-label { width: 30%; font-weight: bold; padding-top: 2px; }
+        .editor-row.active {
+            background-color: rgba(51, 255, 0, 0.2);
+        }
+        
+        .editor-row.editing .field-value {
+            /* No longer blinking background for whole cell, using input style */
+        }
+
+        .field-label { width: 30%; font-weight: bold; }
         .field-value { 
             width: 65%; 
             white-space: pre-wrap; 
             word-break: break-all; 
             min-height: 1.5em; 
             border-bottom: 1px dashed var(--terminal-main); 
-            display: block;
+            display: flex; 
+            align-items: center;
         }
         
+        /* New Style for Inline Input */
         .terminal-inline-input {
             background: transparent;
             border: none;
@@ -384,20 +392,6 @@
             margin: 0;
             text-shadow: 0 0 4px var(--terminal-glow);
         }
-        
-        /* Post Textarea */
-        .post-textarea {
-            width: 100%;
-            height: 200px;
-            background: transparent;
-            border: none;
-            color: var(--terminal-main);
-            font-family: 'VT323', monospace;
-            font-size: 1.2rem;
-            resize: none;
-            outline: none;
-            text-shadow: 0 0 4px var(--terminal-glow);
-        }
 
         .editor-actions {
             margin-top: 10px;
@@ -405,7 +399,6 @@
             justify-content: center;
             gap: 20px;
             padding: 10px;
-            flex-shrink: 0;
         }
 
         .action-btn {
@@ -414,33 +407,11 @@
             cursor: pointer;
             user-select: none;
         }
-        .action-btn.active, .action-btn:hover {
+        
+        .action-btn.active {
             background-color: var(--terminal-main);
             color: var(--terminal-bg);
         }
-
-        /* --- Profile Viewer Styles --- */
-        .profile-bio-section {
-            padding: 10px;
-            border-bottom: 2px double var(--terminal-main);
-            margin-bottom: 10px;
-        }
-        .post-list-section { padding: 10px; }
-        .post-list-item {
-            padding: 5px;
-            cursor: pointer;
-            border-bottom: 1px dotted rgba(51,255,0,0.3);
-        }
-        .post-list-item.selected {
-            background-color: var(--terminal-main);
-            color: var(--terminal-bg);
-        }
-        .post-date { font-size: 0.8em; float: right; }
-
-        /* --- Post Reader Styles --- */
-        .post-reader-content { padding: 20px; white-space: pre-wrap; }
-        .reader-title { font-size: 1.8rem; font-weight: bold; border-bottom: 1px solid var(--terminal-main); margin-bottom: 10px; }
-        .reader-meta { font-size: 0.9rem; color: var(--system-color); margin-bottom: 20px; }
 
         @keyframes flicker {
             0% { opacity: 0.97; } 50% { opacity: 0.99; } 100% { opacity: 0.94; }
@@ -476,7 +447,14 @@
             .power-led { width: 6px; height: 6px; bottom: 10px; right: 10px; }
             #autocomplete-menu { max-height: 180px; min-width: 150px; bottom: 100%; left: 0; }
             .suggestion-item { font-size: 1.2rem; padding: 8px; }
-            #tab-btn { font-size: 1rem; padding: 0 6px; margin-left: 6px; height: 1.4rem; }
+            
+            /* Tab button adjustment for mobile */
+            #tab-btn {
+                font-size: 1rem;
+                padding: 0 6px;
+                margin-left: 6px;
+                height: 1.4rem;
+            }
         }
     </style>
 </head>
@@ -494,77 +472,45 @@
                 <span class="prompt" id="prompt-span">...</span>
                 <div class="cmd-wrapper">
                     <div id="autocomplete-menu"></div>
+                    <!-- Switched to Textarea for multiline -->
                     <textarea id="command-input" rows="1" spellcheck="false" autocomplete="off"></textarea>
                     <input type="file" id="file-upload" accept="image/*" style="display:none">
+                    <!-- FIX: Removed all whitespace between spans -->
                     <div id="cmd-display"><span id="cmd-before"></span><span id="cmd-cursor">&nbsp;</span><span id="cmd-after"></span></div>
                 </div>
+                <!-- Tab Button for Android/Touch Devices -->
                 <button id="tab-btn">TAB</button>
             </div>
         </div>
         
         <!-- Profile Editor Overlay -->
-        <div id="profile-editor-overlay" class="utility-overlay">
-            <div class="editor-header">:: PROFILE EDITOR ::</div>
+        <div id="profile-editor-overlay">
+            <div class="editor-header">:: T-OS PROFILE EDITOR UTILITY ::</div>
+            
             <div class="editor-row" id="row-nick">
                 <span class="field-label">NICKNAME:</span>
                 <span class="field-value" id="edit-nick"></span>
             </div>
+            
             <div class="editor-row" id="row-bio">
                 <span class="field-label">BIO:</span>
                 <span class="field-value" id="edit-bio"></span>
             </div>
+            
             <div class="editor-row" id="row-avatar">
                 <span class="field-label">AVATAR:</span>
                 <span class="field-value" id="edit-avatar">[ TAP/SPACE TO UPLOAD ]</span>
             </div>
+            
             <div class="editor-actions">
-                <div class="action-btn" id="btn-save">[ SAVE ]</div>
+                <div class="action-btn" id="btn-save">[ SAVE CHANGES ]</div>
                 <div class="action-btn" id="btn-cancel">[ CANCEL ]</div>
             </div>
-            <div style="text-align: center; font-size: 0.8rem; margin-top: 5px; color: var(--system-color);">[TAB] Nav | [SPACE] Edit</div>
-        </div>
-
-        <!-- NEW: Post Editor Overlay -->
-        <div id="post-editor-overlay" class="utility-overlay">
-            <div class="editor-header">:: CREATE NEW POST ::</div>
-            <div class="editor-row" id="p-row-title">
-                <span class="field-label">TITLE:</span>
-                <span class="field-value" id="post-edit-title">[ ENTER TITLE ]</span>
-            </div>
-            <div class="editor-row" id="p-row-img">
-                <span class="field-label">IMAGE:</span>
-                <span class="field-value" id="post-edit-img">[ UPLOAD IMAGE (OPTIONAL) ]</span>
-            </div>
-            <div class="editor-row" id="p-row-body" style="flex-direction:column; align-items: stretch;">
-                <span class="field-label" style="width:100%; margin-bottom:5px;">CONTENT:</span>
-                <textarea id="post-edit-body" class="post-textarea" placeholder="Write your log here..."></textarea>
-            </div>
-            <div class="editor-actions">
-                <div class="action-btn" id="btn-post-submit">[ PUBLISH ]</div>
-                <div class="action-btn" id="btn-post-cancel">[ CANCEL ]</div>
+            
+            <div style="text-align: center; font-size: 0.8rem; margin-top: 10px; color: var(--system-color);">
+                [TAB/ARROW] NAVIGATE | [SPACE/TAP] EDIT
             </div>
         </div>
-
-        <!-- NEW: Profile Viewer (Data Bank) -->
-        <div id="profile-viewer-overlay" class="utility-overlay">
-            <div class="editor-header">:: USER DATA BANK ::</div>
-            <div class="profile-bio-section" id="pv-bio-section"></div>
-            <div class="editor-header" style="font-size: 1rem; border-top: 1px solid var(--terminal-main);">:: TRANSMISSION LOGS ::</div>
-            <div class="post-list-section" id="pv-post-list"></div>
-            <div class="editor-actions">
-                <div class="action-btn" id="btn-pv-close">[ CLOSE ]</div>
-            </div>
-        </div>
-
-        <!-- NEW: Post Reader -->
-        <div id="post-reader-overlay" class="utility-overlay">
-            <div class="editor-header">:: READER TERMINAL ::</div>
-            <div class="post-reader-content" id="reader-content"></div>
-            <div class="editor-actions">
-                <div class="action-btn" id="btn-reader-close">[ CLOSE ]</div>
-            </div>
-        </div>
-
     </div>
 
     <script type="module">
@@ -572,7 +518,8 @@
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signInAnonymously, setPersistence, browserLocalPersistence, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, setDoc, doc, getDocs, getDoc, deleteDoc, limit, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // CRITICAL FIX: Use system ID
+        // --- Configuration ---
+        // CRITICAL FIX: Use the system provided ID to avoid permission errors
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'tchat-terminal';
         
         const firebaseConfig = {
@@ -598,19 +545,21 @@
         let notificationUnsubscribe = null;
 
         const state = {
-            mode: 'COMMAND', // COMMAND, CHAT, PROFILE_EDIT, POST_EDIT, PROFILE_VIEW, READER
+            mode: 'COMMAND', // COMMAND, CHAT, PROFILE_EDIT
             muted: false,
             booting: true, 
             theme: 'green'
         };
         
+        // --- Command History ---
         const cmdHistory = [];
         let historyIndex = -1;
 
+        // --- Autocomplete Data ---
         const commandsList = [
             'help', 'login', 'logout', 'friend', 'friends', 'friends-email', 'chat', 'reqbox',
-            'burn', 'theme', 'ascii', 'mute', 'unmute', 'post', 'profile', 'set-bio', 'whois', 'mentions',
-            'clear', 'status', 'date', 'exit', 'emoji', 'ping', 'neofetch'
+            'burn', 'theme', 'ascii', 'mute', 'unmute', 
+            'clear', 'status', 'date', 'exit', 'emoji', 'ping', 'neofetch', 'set-bio', 'whois', 'mentions'
         ];
 
         const subCommands = {
@@ -622,6 +571,7 @@
         let autocompleteOptions = [];
         let autocompleteIndex = -1;
 
+        // --- Emoji Map ---
         const EMOJI_MAP = {
             '(acid)': '⊂(◉‿◉)つ', '(afraid)': '(ㆆ _ ㆆ)', '(alpha)': 'α', '(angel)': '☜(⌒▽⌒)☞', '(angry)': '•`_´•',
             '(arrowhead)': '⤜(ⱺ ʖ̯ⱺ)⤏', '(apple)': '', '(ass)': '(‿|‿)', '(butt)': '(‿|‿)', '(awkward)': '•͡˘㇁•͡˘',
@@ -714,6 +664,7 @@
             '(zoidberg)': '(V) (°,,,,°) (V)', '(zombie)': '[¬º-°]¬'
         };
 
+        // --- Sound System ---
         const SoundSys = {
             ctx: null,
             init: function() {
@@ -745,6 +696,27 @@
             }
         };
 
+        // --- Theme System ---
+        const Themes = {
+            green: { main: '#33ff00', system: '#ffaa00', chat: '#00ccff', error: '#ff3333', radio: '#ff33cc' },
+            amber: { main: '#ffb000', system: '#ffcc00', chat: '#ffb000', error: '#ff5500', radio: '#ff8800' },
+            blue:  { main: '#0088ff', system: '#00aaff', chat: '#00ffff', error: '#ff3333', radio: '#cc00ff' },
+            white: { main: '#e0e0e0', system: '#ffffff', chat: '#cccccc', error: '#ff3333', radio: '#ff00ff' },
+            matrix: { main: '#00ff41', system: '#008f11', chat: '#003b00', error: '#ff3333', radio: '#00ff00' }
+        };
+
+        function applyTheme(themeName) {
+            const theme = Themes[themeName];
+            if (!theme) return false;
+            const r = document.documentElement;
+            r.style.setProperty('--terminal-main', theme.main);
+            r.style.setProperty('--terminal-glow', theme.main);
+            r.style.setProperty('--system-color', theme.system);
+            r.style.setProperty('--chat-color', theme.chat);
+            r.style.setProperty('--error-color', theme.error);
+            return true;
+        }
+
         // --- UI References ---
         const input = document.getElementById('command-input');
         const inputLineContainer = document.getElementById('input-line-container');
@@ -759,29 +731,11 @@
         const tabBtn = document.getElementById('tab-btn');
         const editorOverlay = document.getElementById('profile-editor-overlay');
         const crtOverlay = document.getElementById('crt-overlay');
-        
-        // New UI References
-        const postEditorOverlay = document.getElementById('post-editor-overlay');
-        const profileViewerOverlay = document.getElementById('profile-viewer-overlay');
-        const postReaderOverlay = document.getElementById('post-reader-overlay');
 
-        // Profile Editor Refs
+        // Editor Refs
         const editNick = document.getElementById('edit-nick');
         const editBio = document.getElementById('edit-bio');
         const editAvatar = document.getElementById('edit-avatar');
-        
-        // Post Editor Refs
-        const postEditTitle = document.getElementById('post-edit-title');
-        const postEditImg = document.getElementById('post-edit-img');
-        const postEditBody = document.getElementById('post-edit-body');
-        
-        // Profile Viewer Refs
-        const pvBioSection = document.getElementById('pv-bio-section');
-        const pvPostList = document.getElementById('pv-post-list');
-        
-        // Reader Refs
-        const readerContent = document.getElementById('reader-content');
-
         const editorElements = [
             document.getElementById('row-nick'), 
             document.getElementById('row-bio'), 
@@ -790,22 +744,13 @@
             document.getElementById('btn-cancel')
         ];
         
-        const postEditorElements = [
-            document.getElementById('p-row-title'),
-            document.getElementById('p-row-img'),
-            document.getElementById('post-edit-body'), // The textarea directly
-            document.getElementById('btn-post-submit'),
-            document.getElementById('btn-post-cancel')
-        ];
-        
         let editorSelection = 0;
         let editorIsEditing = false;
+        let editorBuffer = '';
         let editorAvatarBuffer = null;
-        let postEditorImageAscii = null;
-        let currentViewingPosts = [];
 
         function updateInputDisplay() {
-            if (['PROFILE_EDIT', 'POST_EDIT', 'PROFILE_VIEW', 'READER'].includes(state.mode)) return;
+            if (state.mode === 'PROFILE_EDIT') return; // Don't update main input display in edit mode
 
             const val = input.value;
             const selStart = input.selectionStart || 0;
@@ -825,8 +770,9 @@
         // --- Tab Button Logic ---
         tabBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            if (['PROFILE_EDIT', 'POST_EDIT'].includes(state.mode)) {
-                 handleOverlayKey({ key: 'Tab', preventDefault: () => {} });
+            if (state.mode === 'PROFILE_EDIT') {
+                // Fix: Pass an object mimicking the event
+                 handleProfileEditorKey({ key: 'Tab', preventDefault: () => {} });
             } else {
                 input.focus(); 
                 handleTabCompletion({ preventDefault: () => {} });
@@ -838,6 +784,7 @@
             const file = e.target.files[0];
             if (!file) return;
             
+            // IF IN EDITOR MODE
             if (state.mode === 'PROFILE_EDIT') {
                 const reader = new FileReader();
                 reader.onload = async (event) => {
@@ -845,46 +792,45 @@
                          const ascii = await convertImageToAscii(event.target.result);
                          editorAvatarBuffer = ascii;
                          editAvatar.textContent = "[ IMAGE SET (ASCII GENERATED) ]";
-                    } catch(e) { editAvatar.textContent = "[ ERROR ]"; }
+                    } catch(e) {
+                         editAvatar.textContent = "[ ERROR CONVERTING ]";
+                    }
                     fileInput.value = '';
                 };
                 reader.readAsDataURL(file);
                 return;
             }
             
-            if (state.mode === 'POST_EDIT') {
-                const reader = new FileReader();
-                reader.onload = async (event) => {
-                    try {
-                         const ascii = await convertImageToAscii(event.target.result);
-                         postEditorImageAscii = ascii;
-                         postEditImg.textContent = "[ IMAGE ATTACHED ]";
-                    } catch(e) { postEditImg.textContent = "[ ERROR ]"; }
-                    fileInput.value = '';
-                };
-                reader.readAsDataURL(file);
-                return;
-            }
-            
+            // NORMAL CHAT MODE
             addMessage('SYSTEM', `PROCESSING IMAGE: ${file.name}...`, true);
             const reader = new FileReader();
             reader.onload = async (event) => {
                 try {
                     const ascii = await convertImageToAscii(event.target.result);
-                    if (state.mode === 'COMMAND') addMessage(null, ascii, false, false, false, true);
-                    else await sendMessage(ascii, true, false); 
-                } catch(err) { addMessage('ERROR', 'FAILED: ' + err.message, false, false, true); }
+                    if (state.mode === 'COMMAND') {
+                        addMessage(null, ascii, false, false, false, true);
+                    } else {
+                        await sendMessage(ascii, true, false); 
+                    }
+                } catch(err) {
+                    addMessage('ERROR', 'CONVERSION FAILED: ' + err.message, false, false, true);
+                }
                 fileInput.value = ''; 
             };
             reader.readAsDataURL(file);
         });
 
-        // --- Autocomplete ---
+        // --- Autocomplete Logic ---
         function showAutocompleteMenu(options) {
             autocompleteMenu.innerHTML = '';
             autocompleteOptions = options;
             autocompleteIndex = -1;
-            if (options.length === 0) { autocompleteMenu.style.display = 'none'; return; }
+
+            if (options.length === 0) {
+                autocompleteMenu.style.display = 'none';
+                return;
+            }
+
             options.forEach((opt, index) => {
                 const div = document.createElement('div');
                 div.className = 'suggestion-item';
@@ -892,6 +838,7 @@
                 div.onclick = () => confirmSelection(opt);
                 autocompleteMenu.appendChild(div);
             });
+
             autocompleteMenu.style.display = 'flex';
         }
 
@@ -903,7 +850,9 @@
 
         function highlightOption(index) {
             const items = autocompleteMenu.children;
-            for (let i = 0; i < items.length; i++) items[i].classList.remove('selected');
+            for (let i = 0; i < items.length; i++) {
+                items[i].classList.remove('selected');
+            }
             if (index >= 0 && index < items.length) {
                 items[index].classList.add('selected');
                 items[index].scrollIntoView({ block: 'nearest' });
@@ -912,12 +861,30 @@
 
         function confirmSelection(selectedValue) {
             const val = input.value;
+            
+            // Special handling for @(Mention) to support spaces
+            if (selectedValue.startsWith('@(')) {
+                // Find the last occurrence of '@(' to replace
+                const lastAtParen = val.lastIndexOf('@(');
+                if (lastAtParen !== -1) {
+                    const prefix = val.substring(0, lastAtParen);
+                    input.value = prefix + selectedValue + ' ';
+                    hideAutocomplete();
+                    updateInputDisplay();
+                    input.focus();
+                    return;
+                }
+            }
+
             const lastSpaceIdx = val.lastIndexOf(' ');
-            if (lastSpaceIdx === -1) input.value = selectedValue + ' ';
-            else {
+            
+            if (lastSpaceIdx === -1) {
+                input.value = selectedValue + ' ';
+            } else {
                 const prefix = val.substring(0, lastSpaceIdx + 1);
                 input.value = prefix + selectedValue + ' ';
             }
+            
             hideAutocomplete();
             updateInputDisplay();
             input.focus();
@@ -925,64 +892,367 @@
 
         function handleTabCompletion(e) {
             e.preventDefault();
+
             if (autocompleteMenu.style.display === 'flex') {
                 autocompleteIndex = (autocompleteIndex + 1) % autocompleteOptions.length;
                 highlightOption(autocompleteIndex);
                 return;
             }
+
             const val = input.value;
+            let matches = [];
+
+            // Standard command/emoji completion based on space splitting
             const parts = val.split(' '); 
             const currentWord = parts[parts.length - 1]; 
-            let matches = [];
 
             if (currentWord.startsWith('(')) {
                 const emojiKeys = Object.keys(EMOJI_MAP);
                 matches = emojiKeys.filter(key => key.startsWith(currentWord));
-            } else if (parts.length === 1 && currentWord !== "") {
-                matches = commandsList.filter(cmd => cmd.startsWith(currentWord));
-            } else if (parts.length === 2 && !currentWord.startsWith('(')) {
+            }
+            else if (parts.length === 1 && currentWord !== "") {
+                    matches = commandsList.filter(cmd => cmd.startsWith(currentWord));
+            }
+            else if (parts.length === 2 && !currentWord.startsWith('(')) {
                 const cmd = parts[0];
-                if (subCommands[cmd]) matches = subCommands[cmd].filter(sub => sub.startsWith(currentWord));
+                if (subCommands[cmd]) {
+                    matches = subCommands[cmd].filter(sub => sub.startsWith(currentWord));
+                }
             }
 
-            if (matches.length === 1) confirmSelection(matches[0]);
-            else if (matches.length > 1) showAutocompleteMenu(matches);
+            if (matches.length === 1) {
+                confirmSelection(matches[0]);
+            } else if (matches.length > 1) {
+                showAutocompleteMenu(matches);
+            }
         }
 
-        // --- Keyboard Handling for Overlays ---
-        document.addEventListener('keydown', (event) => {
-            // Check for Post/Profile Editor Mode
-            if (['PROFILE_EDIT', 'POST_EDIT'].includes(state.mode)) {
-                // FIX: Allow typing in inputs/textareas without triggering navigation
-                if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
-                    if (event.key === 'Escape') {
-                        // Let escape close things
-                    } else if (event.key === 'Tab') {
-                        // Let Tab navigate
-                        event.preventDefault(); 
-                        // Fall through to handleOverlayKey to move selection
+        // --- Boot Sequence & Auth ---
+        
+        const bootText = [
+            "BIOS DATE 01/01/99 14:22:55 VER 1.0.2",
+            "CPU: NEC V60, SPEED: 33MHz",
+            "640K RAM SYSTEM... OK",
+            "LOADING T-OS KERNEL...",
+            "MOUNTING VIRTUAL FILESYSTEM... OK",
+            "INITIATING NETWORK PROTOCOLS...",
+            "  > TCP/IP... UP",
+            "  > FIREWALL... ACTIVE",
+            "  > ENCRYPTION... ENABLED",
+            "CONNECTING TO SATELLITE UPLINK...",
+            "CONNECTION ESTABLISHED.",
+            "STARTING T-CHAT INTERFACE..."
+        ];
+
+        async function runBootSequence() {
+            // Attempt to initialize audio context
+            SoundSys.init();
+
+            // Wait a moment for effect
+            await new Promise(r => setTimeout(r, 800));
+            
+            for (const line of bootText) {
+                // Play text sound
+                SoundSys.click();
+                
+                addMessage(null, line, true); 
+                // Random typing delay
+                await new Promise(r => setTimeout(r, 100 + Math.random() * 250));
+            }
+            
+            // Final pause before clear
+            await new Promise(r => setTimeout(r, 1000));
+            
+            history.innerHTML = '';
+            state.booting = false;
+            
+            // Show UI
+            inputLineContainer.style.opacity = '1';
+            input.focus();
+            showWelcomeScreen();
+        }
+
+        function showWelcomeScreen() {
+            const logo = `
+  _______   _____ _           _   
+ |__   __| / ____| |         | |  
+    | |   | |    | |__   __ _| |_ 
+    | |   | |    | '_ \\ / _\` | __|
+    | |   | |____| | | | (_| | |_ 
+    |_|    \\_____|_| |_|\\__,_|\\__|  v2.0
+            `;
+            addMessage(null, logo, false, false, false, true); // Ascii art mode
+
+            addMessage('SYSTEM', 'WELCOME, USER.', true);
+            addMessage(null, '------------------------------------------------');
+            addMessage(null, 'QUICK START GUIDE:');
+            addMessage(null, '1. LOGIN:        Type "login" to sign in with Google.');
+            addMessage(null, '2. COMMANDS:     Type "help" to see available tools.');
+            addMessage(null, '3. SHORTCUTS:    Press [TAB] to autocomplete commands.');
+            addMessage(null, '4. EMOJIS:       Type "(" and [TAB] to see the menu.');
+            addMessage(null, '                 Ex: (tableflip) -> (ノ ゜Д゜)ノ ︵ ┻━┻');
+            addMessage(null, '------------------------------------------------');
+            
+            // If auth finished during boot, show status now
+            if (currentUser && !currentUser.isAnonymous) {
+                addMessage('SYSTEM', `SESSION RESTORED: ${currentUser.email}`, true);
+            }
+            
+            addMessage('SYSTEM', 'SYSTEM READY. AWAITING INPUT...', true);
+        }
+
+        const initGuestAuth = async () => {
+            try { await signInAnonymously(auth); } 
+            catch (e) { console.warn("Guest login failed:", e.code); }
+        };
+
+        const updateStatus = async (status) => {
+            if (!currentUser || currentUser.isAnonymous) return;
+            try {
+                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', currentUser.uid);
+                
+                // Also update joinedAt if missing (legacy fix)
+                await setDoc(userRef, {
+                    status: status,
+                    lastSeen: serverTimestamp()
+                }, { merge: true });
+                return true;
+            } catch(e) { console.error(e); return false; }
+        };
+
+        // --- Notification Listener ---
+        function setupNotificationListener(uid) {
+            if (notificationUnsubscribe) notificationUnsubscribe();
+            
+            const notifRef = collection(db, 'artifacts', appId, 'users', uid, 'notifications');
+            const q = query(notifRef, orderBy('timestamp', 'desc'), limit(1));
+            
+            notificationUnsubscribe = onSnapshot(q, (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === "added") {
+                        const notif = change.doc.data();
+                        // Only alert if recent (within last 30 seconds) to avoid spam on load
+                        if (notif.timestamp && (Date.now() - notif.timestamp.toMillis()) < 30000) {
+                            triggerNotificationEffect(notif);
+                        }
+                    }
+                });
+            });
+        }
+
+        function triggerNotificationEffect(notif) {
+            SoundSys.alert();
+            
+            // Screen Flash
+            crtOverlay.classList.add('notification-flash');
+            setTimeout(() => crtOverlay.classList.remove('notification-flash'), 500);
+            
+            addMessage('ALERT', `MENTIONED BY [${notif.fromName}]: "${notif.preview}"`, true);
+        }
+
+        onAuthStateChanged(auth, async (user) => {
+            currentUser = user;
+            if (user) {
+                if (user.isAnonymous) {
+                     updatePrompt('guest');
+                     // Only show if not booting (boot sequence handles initial welcome)
+                     if (!state.booting) addMessage('SYSTEM', 'GUEST MODE ACTIVE.', true);
+                } else {
+                    updatePrompt(user.email.split('@')[0]);
+                    if (!state.booting) addMessage('SYSTEM', `AUTHENTICATED AS ${user.email}`, true);
+                    
+                    await updateStatus('online');
+                    setupNotificationListener(user.uid);
+
+                    try {
+                        const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', user.uid);
+                        // Ensure basic profile exists
+                        const snap = await getDoc(userRef);
+                        const baseData = {
+                            email: user.email,
+                            displayName: user.displayName || user.email.split('@')[0],
+                            uid: user.uid,
+                            status: 'online',
+                            lastSeen: serverTimestamp()
+                        };
+                        
+                        if (!snap.exists() || !snap.data().joinedAt) {
+                            baseData.joinedAt = serverTimestamp();
+                        }
+                        
+                        await setDoc(userRef, baseData, { merge: true });
+                    } catch (e) {}
+                }
+            } else {
+                updatePrompt('offline');
+                initGuestAuth();
+                if (notificationUnsubscribe) notificationUnsubscribe();
+            }
+        });
+
+        // Trigger Boot
+        window.onload = runBootSequence;
+
+        const handleLogin = async () => {
+            try {
+                addMessage('SYSTEM', 'INITIATING GOOGLE AUTH HANDSHAKE...', true);
+                const provider = new GoogleAuthProvider();
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                if (error.code === 'auth/unauthorized-domain') {
+                    addMessage('ERROR', 'DOMAIN NOT AUTHORIZED. Check Firebase Console.', false, false, true);
+                } else {
+                    addMessage('ERROR', `LOGIN FAILED: ${error.message}`, false, false, true);
+                }
+            }
+        };
+
+        function updatePrompt(username) {
+            if (state.mode === 'CHAT') {
+                const name = currentChatPartner.nickname || currentChatPartner.email;
+                promptSpan.textContent = `[CHAT:${name}] >`;
+                input.style.caretColor = 'var(--chat-color)';
+            } else {
+                promptSpan.textContent = `${username}@TChat:~$`;
+                input.style.caretColor = 'var(--terminal-main)';
+            }
+        }
+
+        // --- Effects ---
+        function parseEmojis(text) {
+             return text.replace(/\([^)]+\)/g, (match) => EMOJI_MAP[match] || match);
+        }
+
+        // Updated scrambleText to accept finalHTML
+        function scrambleText(element, finalValidText, finalHTML = null) {
+            const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()";
+            let iterations = 0;
+            const originalText = finalValidText;
+            
+            const interval = setInterval(() => {
+                element.innerText = originalText.split('').map((char, index) => {
+                    if (char === ' ' || char === '\n') return char; 
+                    if (index < Math.floor(iterations)) return originalText[index];
+                    return chars[Math.floor(Math.random() * chars.length)];
+                }).join('');
+                
+                if (iterations >= originalText.length) {
+                    clearInterval(interval);
+                    // FIX: Restore the HTML (highlights) after animation ends
+                    if (finalHTML) {
+                        element.innerHTML = finalHTML;
                     } else {
-                        // Allow all other keys (letters, space, enter) to type normally
-                        return; 
+                        element.innerText = originalText;
                     }
                 }
-                handleOverlayKey(event);
-                return;
+                
+                iterations += 1/3 + (originalText.length / 300); 
+            }, 60); 
+        }
+
+        const msgMap = new Map();
+
+        function addMessage(sender, text, isSystem = false, isChat = false, isError = false, isAscii = false, msgId = null, isBurn = false) {
+            const msgDiv = document.createElement('div');
+            msgDiv.classList.add('message-line');
+            if (isSystem) msgDiv.classList.add('system-msg');
+            if (isChat) msgDiv.classList.add('chat-msg');
+            if (isError) msgDiv.classList.add('error-msg');
+            if (isAscii) msgDiv.classList.add('ascii-art');
+
+            if (msgId) {
+                msgDiv.setAttribute('data-msg-id', msgId);
+                msgMap.set(msgId, msgDiv);
             }
-            if (state.mode === 'PROFILE_VIEW') { handleProfileViewerKey(event); return; }
-            if (state.mode === 'READER') {
-                if (event.key === 'Escape' || event.key === 'Enter') closePostReader();
+
+            if (!state.muted && (isSystem || (isChat && sender !== 'ME'))) {
+                setTimeout(() => SoundSys.blip(), 50);
+            }
+
+            const contentSpan = document.createElement('span');
+
+            if (sender) {
+                let prefixColor = 'var(--terminal-main)';
+                
+                if (isChat) {
+                    prefixColor = (sender === 'ME') ? 'var(--terminal-main)' : 'var(--chat-color)';
+                }
+                
+                if (isSystem) prefixColor = 'var(--system-color)';
+                if (isError) prefixColor = 'var(--error-color)';
+                
+                const prefixSpan = document.createElement('span');
+                prefixSpan.className = 'user-prefix';
+                prefixSpan.style.color = prefixColor;
+                prefixSpan.textContent = `[${sender}]: `;
+                msgDiv.appendChild(prefixSpan);
+            }
+
+            // Highlight Mentions @(Name)
+            let finalHTML = null;
+            if (!isAscii && text) {
+                // Escape HTML basic
+                let html = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                // Regex for @(mention)
+                html = html.replace(/@\((.*?)\)/g, '<span class="highlight-mention">@($1)</span>');
+                contentSpan.innerHTML = html;
+                finalHTML = html; // Store the HTML for the scramble effect
+            } else {
+                contentSpan.textContent = text; 
+            }
+
+            msgDiv.appendChild(contentSpan);
+
+            if (isBurn) {
+                const burnSpan = document.createElement('span');
+                burnSpan.className = 'burn-timer';
+                burnSpan.textContent = ' [10s]';
+                msgDiv.appendChild(burnSpan);
+
+                let left = 10;
+                const timer = setInterval(() => {
+                    left--;
+                    if(left >= 0) burnSpan.textContent = ` [${left}s]`;
+                    else {
+                        clearInterval(timer);
+                    }
+                }, 1000);
+            }
+
+            history.appendChild(msgDiv);
+            scrollToBottom();
+
+            if ((isChat && sender !== 'ME') || isSystem) {
+                // FIX: Pass finalHTML to scrambleText so it can restore the highlight
+                if (!isAscii) scrambleText(contentSpan, text, finalHTML);
+            }
+
+            return msgDiv;
+        }
+
+        function scrollToBottom() {
+            history.scrollTop = history.scrollHeight;
+        }
+
+        // --- Command Processing ---
+        
+        // --- Intercept Keys for Profile Editor ---
+        document.addEventListener('keydown', (event) => {
+            if (state.mode === 'PROFILE_EDIT') {
+                handleProfileEditorKey(event);
                 return;
             }
         });
 
-        // --- Main Input Keydown ---
         input.addEventListener('keydown', function(event) {
-            if (state.mode !== 'COMMAND' && state.mode !== 'CHAT') return; 
+            if (state.mode === 'PROFILE_EDIT') return; // Should be handled by document listener above but safety check
 
             SoundSys.init();
             
-            if (event.key === 'Tab') { handleTabCompletion(event); return; }
+            if (event.key === 'Tab') {
+                handleTabCompletion(event);
+                return; 
+            }
 
             if (autocompleteMenu.style.display === 'flex') {
                 if (event.key === 'ArrowUp') {
@@ -1005,7 +1275,10 @@
                     }
                     hideAutocomplete();
                 }
-                if (event.key === 'Escape') { hideAutocomplete(); return; }
+                if (event.key === 'Escape') {
+                    hideAutocomplete();
+                    return;
+                }
             } else {
                 if (event.key === 'ArrowUp') {
                     event.preventDefault();
@@ -1032,16 +1305,27 @@
                 }
             }
 
-            if (event.key.length === 1 || event.key === 'Backspace') { if (event.key !== 'Tab') hideAutocomplete(); }
-            if (!['Enter', 'Shift', 'Control', 'Alt', 'ArrowUp', 'ArrowDown', 'Tab'].includes(event.key)) SoundSys.click();
+            if (event.key.length === 1 || event.key === 'Backspace') {
+                 if (event.key !== 'Tab') hideAutocomplete();
+            }
+
+            if (!['Enter', 'Shift', 'Control', 'Alt', 'ArrowUp', 'ArrowDown', 'Tab'].includes(event.key)) {
+                SoundSys.click();
+            }
 
             if (event.key === 'Enter') {
                 const text = input.value; 
                 const trimmed = text.trim();
-                if (event.shiftKey) return;
+                
+                // Allow Shift+Enter to insert a newline
+                if (event.shiftKey) {
+                    return;
+                }
+
                 if (trimmed !== "") {
                     cmdHistory.push(trimmed);
                     historyIndex = -1;
+
                     if (state.mode === 'COMMAND') {
                         addMessage('ME', trimmed);
                         processCommand(trimmed);
@@ -1051,16 +1335,20 @@
                     input.value = '';
                     updateInputDisplay();
                 }
-                event.preventDefault(); 
+                event.preventDefault(); // Prevent newline in textarea
             }
             requestAnimationFrame(updateInputDisplay);
         });
 
         document.addEventListener('click', (e) => { 
-            if (state.mode !== 'COMMAND' && state.mode !== 'CHAT') return;
+            // Don't steal focus if in profile editor
+            if (state.mode === 'PROFILE_EDIT') return;
+
             input.focus(); 
             SoundSys.init();
-            if (e.target !== autocompleteMenu && e.target.parentElement !== autocompleteMenu && e.target !== tabBtn) hideAutocomplete();
+            if (e.target !== autocompleteMenu && e.target.parentElement !== autocompleteMenu && e.target !== tabBtn) {
+                hideAutocomplete();
+            }
         });
 
         // --- Profile Editor Logic ---
@@ -1069,6 +1357,7 @@
             state.mode = 'PROFILE_EDIT';
             editorOverlay.style.display = 'flex';
             
+            // Load current data
             const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', currentUser.uid);
             getDoc(userRef).then(snap => {
                 if(snap.exists()) {
@@ -1084,14 +1373,8 @@
 
             editorSelection = 0;
             editorIsEditing = false;
-            updateEditorVisuals(editorElements, editorSelection);
-            
-            // Attach clicks
-            document.getElementById('row-nick').onclick = () => handleEditorInteraction(0, 'PROFILE');
-            document.getElementById('row-bio').onclick = () => handleEditorInteraction(1, 'PROFILE');
-            document.getElementById('row-avatar').onclick = () => handleEditorInteraction(2, 'PROFILE');
-            document.getElementById('btn-save').onclick = () => handleEditorInteraction(3, 'PROFILE');
-            document.getElementById('btn-cancel').onclick = () => handleEditorInteraction(4, 'PROFILE');
+            updateEditorVisuals();
+            setupEditorClicks(); // Ensure listeners are attached
         }
 
         function closeProfileEditor() {
@@ -1104,319 +1387,181 @@
         async function saveProfileEditor() {
             addMessage('SYSTEM', 'SAVING PROFILE...', true);
             const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', currentUser.uid);
-            const dataToUpdate = { displayName: editNick.textContent.trim(), bio: editBio.textContent.trim() };
-            if (editorAvatarBuffer) dataToUpdate.avatarAscii = editorAvatarBuffer;
+            
+            const rawNick = editNick.textContent.trim();
+            const dataToUpdate = {
+                displayName: rawNick,
+                displayNameLower: rawNick.toLowerCase(), // Add this for easier search later
+                bio: editBio.textContent.trim(),
+            };
+            
+            if (editorAvatarBuffer) {
+                dataToUpdate.avatarAscii = editorAvatarBuffer;
+            }
+            
             await setDoc(userRef, dataToUpdate, { merge: true });
-            addMessage('SYSTEM', 'PROFILE UPDATED.', true);
+            
+            addMessage('SYSTEM', 'PROFILE UPDATED SUCCESSFULLY.', true);
             closeProfileEditor();
         }
 
-        // --- Post Editor Logic ---
-        function openPostEditor() {
-            if (!ensureAuth()) return;
-            state.mode = 'POST_EDIT';
-            postEditorOverlay.style.display = 'flex';
-            
-            postEditTitle.textContent = '[ ENTER TITLE ]';
-            postEditImg.textContent = '[ UPLOAD IMAGE (OPTIONAL) ]';
-            postEditBody.value = '';
-            postEditorImageAscii = null;
-
-            editorSelection = 0;
-            editorIsEditing = false;
-            updateEditorVisuals(postEditorElements, editorSelection);
-
-            document.getElementById('p-row-title').onclick = () => handleEditorInteraction(0, 'POST');
-            document.getElementById('p-row-img').onclick = () => handleEditorInteraction(1, 'POST');
-            postEditBody.onclick = () => { editorSelection = 2; updateEditorVisuals(postEditorElements, editorSelection); postEditBody.focus(); };
-            document.getElementById('btn-post-submit').onclick = () => handleEditorInteraction(3, 'POST');
-            document.getElementById('btn-post-cancel').onclick = () => handleEditorInteraction(4, 'POST');
-        }
-
-        function closePostEditor() {
-            state.mode = 'COMMAND';
-            postEditorOverlay.style.display = 'none';
-            input.focus();
-        }
-
-        async function savePost() {
-            const title = postEditTitle.textContent.trim();
-            const body = postEditBody.value.trim();
-            
-            if (!title || title === "[ ENTER TITLE ]") { alert("TITLE REQUIRED"); return; }
-            if (!body) { alert("CONTENT REQUIRED"); return; }
-
-            addMessage('SYSTEM', 'TRANSMITTING POST...', true);
-            closePostEditor(); 
-
-            try {
-                // FIX: Use proper path /artifacts/{appId}/public/data/posts
-                const postsRef = collection(db, 'artifacts', appId, 'public', 'data', 'posts');
-                await addDoc(postsRef, {
-                    title: title,
-                    content: body,
-                    asciiArt: postEditorImageAscii,
-                    authorId: currentUser.uid,
-                    authorEmail: currentUser.email,
-                    authorName: currentUser.displayName || currentUser.email.split('@')[0],
-                    timestamp: serverTimestamp()
-                });
-                addMessage('SYSTEM', 'POST PUBLISHED SUCCESSFULLY.', true);
-            } catch(e) {
-                addMessage('ERROR', 'PUBLISH FAILED: ' + e.message, false, false, true);
-            }
-        }
-
-        // --- Profile Viewer Logic ---
-        async function openProfileViewer(identifier) {
-            state.mode = 'PROFILE_VIEW';
-            profileViewerOverlay.style.display = 'flex';
-            pvBioSection.innerHTML = 'LOADING DATA...';
-            pvPostList.innerHTML = 'SCANNING ARCHIVES...';
-            currentViewingPosts = [];
-            editorSelection = 0; 
-
-            try {
-                let targetUser = null;
-                // Resolve User
-                if (!identifier || identifier === 'me') {
-                    const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', currentUser.uid);
-                    const snap = await getDoc(userRef);
-                    if (snap.exists()) targetUser = snap.data();
-                } else {
-                    targetUser = await resolveUserByNickOrEmail(identifier);
-                }
-
-                if (!targetUser) {
-                    pvBioSection.innerHTML = 'USER NOT FOUND.';
-                    pvPostList.innerHTML = '';
-                    return;
-                }
-
-                // Render Bio
-                let asciiHtml = targetUser.avatarAscii ? `<div class="ascii-art" style="font-size:0.5rem;">${targetUser.avatarAscii}</div>` : '';
-                pvBioSection.innerHTML = `
-                    ${asciiHtml}
-                    <div><strong>USER:</strong> ${targetUser.displayName || targetUser.email}</div>
-                    <div><strong>STATUS:</strong> ${(targetUser.status || 'UNKNOWN').toUpperCase()}</div>
-                    <div style="margin-top:5px; white-space:pre-wrap;">${targetUser.bio || 'No bio available.'}</div>
-                `;
-
-                // Fetch Posts (Client-side filtering to avoid index issues)
-                const postsRef = collection(db, 'artifacts', appId, 'public', 'data', 'posts');
-                // Use simple query without orderBy first to avoid index errors
-                const q = query(postsRef, where('authorId', '==', targetUser.uid));
-                const snap = await getDocs(q);
-                
-                currentViewingPosts = [];
-                snap.forEach(doc => {
-                    const d = doc.data();
-                    d.id = doc.id;
-                    currentViewingPosts.push(d);
-                });
-
-                // Sort by time descending in JS
-                currentViewingPosts.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
-
-                if (currentViewingPosts.length === 0) {
-                    pvPostList.innerHTML = 'NO LOGS FOUND.';
-                } else {
-                    pvPostList.innerHTML = '';
-                    currentViewingPosts.forEach((post, index) => {
-                        const div = document.createElement('div');
-                        div.className = 'post-list-item';
-                        const date = post.timestamp ? new Date(post.timestamp.seconds * 1000).toLocaleDateString() : 'Unknown';
-                        div.innerHTML = `<span>${post.title}</span> <span class="post-date">${date}</span>`;
-                        div.onclick = () => openPostReader(post);
-                        pvPostList.appendChild(div);
-                    });
-                    editorSelection = 1; 
-                    updateProfileViewerSelection();
-                }
-                document.getElementById('btn-pv-close').onclick = closeProfileViewer;
-
-            } catch(e) {
-                pvBioSection.innerHTML = 'ERROR: ' + e.message;
-            }
-        }
-
-        function closeProfileViewer() {
-            state.mode = 'COMMAND';
-            profileViewerOverlay.style.display = 'none';
-            input.focus();
-        }
-
-        function updateProfileViewerSelection() {
-            const closeBtn = document.getElementById('btn-pv-close');
-            closeBtn.classList.remove('active');
-            const items = pvPostList.children;
-            for(let i=0; i<items.length; i++) items[i].classList.remove('selected');
-
-            if (editorSelection === 0) {
-                closeBtn.classList.add('active');
-            } else {
-                const index = editorSelection - 1;
-                if (index >= 0 && index < items.length) {
-                    items[index].classList.add('selected');
-                    items[index].scrollIntoView({block: 'nearest'});
-                }
-            }
-        }
-
-        function handleProfileViewerKey(e) {
-            const maxIdx = currentViewingPosts.length;
-            if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                editorSelection--;
-                if (editorSelection < 0) editorSelection = maxIdx;
-                updateProfileViewerSelection();
-            } else if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                editorSelection++;
-                if (editorSelection > maxIdx) editorSelection = 0;
-                updateProfileViewerSelection();
-            } else if (e.key === 'Enter') {
-                e.preventDefault();
-                if (editorSelection === 0) closeProfileViewer();
-                else {
-                    const post = currentViewingPosts[editorSelection - 1];
-                    if (post) openPostReader(post);
-                }
-            } else if (e.key === 'Escape') {
-                closeProfileViewer();
-            }
-        }
-
-        // --- Post Reader Logic ---
-        function openPostReader(post) {
-            state.mode = 'READER';
-            postReaderOverlay.style.display = 'flex';
-            
-            const date = post.timestamp ? new Date(post.timestamp.seconds * 1000).toLocaleString() : 'Unknown Date';
-            let asciiHtml = post.asciiArt ? `<div class="ascii-art" style="font-size:0.5rem; text-align:center;">${post.asciiArt}</div>` : '';
-            
-            readerContent.innerHTML = `
-                <div class="reader-title">${post.title}</div>
-                <div class="reader-meta">AUTHOR: ${post.authorName} | DATE: ${date}</div>
-                ${asciiHtml}
-                <div style="margin-top:20px; line-height:1.4;">${post.content}</div>
-            `;
-            document.getElementById('btn-reader-close').onclick = closePostReader;
-        }
-
-        function closePostReader() {
-            state.mode = 'PROFILE_VIEW';
-            postReaderOverlay.style.display = 'none';
-        }
-
-        // --- Generic Editor Interaction Handler ---
-        function updateEditorVisuals(elements, selection) {
-            elements.forEach(el => {
-                if (el) {
-                    el.classList.remove('active');
-                    el.classList.remove('editing');
-                }
+        function updateEditorVisuals() {
+            // Reset all
+            editorElements.forEach(el => {
+                el.classList.remove('active');
+                el.classList.remove('editing');
             });
-            const currentEl = elements[selection];
-            if (currentEl) {
-                currentEl.classList.add('active');
-                if (editorIsEditing) currentEl.classList.add('editing');
+
+            // Highlight selected
+            const currentEl = editorElements[editorSelection];
+            currentEl.classList.add('active');
+            
+            if (editorIsEditing) {
+                currentEl.classList.add('editing');
             }
         }
 
-        function handleOverlayKey(e) {
-            const currentElements = state.mode === 'PROFILE_EDIT' ? editorElements : postEditorElements;
+        function setupEditorClicks() {
+            // Using .onclick to prevent duplicate listeners if called multiple times
+            document.getElementById('row-nick').onclick = () => handleEditorInteraction(0);
+            document.getElementById('row-bio').onclick = () => handleEditorInteraction(1);
+            document.getElementById('row-avatar').onclick = () => handleEditorInteraction(2);
+            document.getElementById('btn-save').onclick = () => handleEditorInteraction(3);
+            document.getElementById('btn-cancel').onclick = () => handleEditorInteraction(4);
+        }
 
-            if (e.key === 'Tab' || e.key === 'ArrowDown') {
-                e.preventDefault();
-                editorSelection = (editorSelection + 1) % currentElements.length;
+        function handleEditorInteraction(index) {
+            // If selecting a new row
+            if (editorSelection !== index) {
+                editorSelection = index;
+                editorIsEditing = false;
                 SoundSys.blip();
-                updateEditorVisuals(currentElements, editorSelection);
-            } else if (e.key === 'ArrowUp') {
-                 e.preventDefault();
-                 editorSelection = (editorSelection - 1 + currentElements.length) % currentElements.length;
-                 SoundSys.blip();
-                 updateEditorVisuals(currentElements, editorSelection);
+                updateEditorVisuals();
+                return;
             }
-            else if (e.key === ' ' || e.key === 'Enter') {
-                e.preventDefault();
-                SoundSys.click();
-                const type = state.mode === 'PROFILE_EDIT' ? 'PROFILE' : 'POST';
-                handleEditorInteraction(editorSelection, type);
-            }
-        }
 
-        function handleEditorInteraction(index, type) {
-            editorSelection = index;
-            const currentElements = type === 'PROFILE' ? editorElements : postEditorElements;
-            updateEditorVisuals(currentElements, editorSelection);
-
-            if (type === 'PROFILE') {
-                if (index === 0) activateInlineInput(editNick);
-                else if (index === 1) activateInlineInput(editBio);
-                else if (index === 2) fileInput.click();
-                else if (index === 3) saveProfileEditor();
-                else if (index === 4) closeProfileEditor();
+            // If selecting the ALREADY selected row (Action/Edit)
+            SoundSys.click();
+            
+            if (index === 0) { // Nick
+                activateInlineInput(editNick);
             } 
-            else if (type === 'POST') {
-                if (index === 0) activateInlineInput(postEditTitle);
-                else if (index === 1) fileInput.click();
-                else if (index === 2) { 
-                    postEditBody.focus(); 
-                    editorIsEditing = true; // Mark editing so keys pass through
-                }
-                else if (index === 3) savePost();
-                else if (index === 4) closePostEditor();
+            else if (index === 1) { // Bio
+                activateInlineInput(editBio);
+            }
+            else if (index === 2) { // Avatar
+                fileInput.click();
+            }
+            else if (index === 3) { // Save
+                saveProfileEditor();
+            }
+            else if (index === 4) { // Cancel
+                closeProfileEditor();
             }
         }
 
         function activateInlineInput(element) {
+            // If already has input, ignore
             if (element.querySelector('input')) return;
+
             editorIsEditing = true;
             const currentText = element.textContent;
-            element.textContent = ''; 
+            element.textContent = ''; // Clear text
+            
             const inputEl = document.createElement('input');
             inputEl.type = 'text';
-            inputEl.value = (currentText === '[ ENTER TITLE ]' || currentText.includes('[ TAP')) ? '' : currentText;
+            inputEl.value = currentText;
             inputEl.className = 'terminal-inline-input';
             
+            // Commit on blur
             inputEl.addEventListener('blur', () => {
-                element.textContent = inputEl.value || (element === postEditTitle ? '[ ENTER TITLE ]' : '');
-                editorIsEditing = false;
-                const els = state.mode === 'PROFILE_EDIT' ? editorElements : postEditorElements;
-                updateEditorVisuals(els, editorSelection);
+                commitInlineInput(element, inputEl);
             });
+            
+            // Commit on Enter or Tab
             inputEl.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') inputEl.blur();
-                e.stopPropagation();
+                if (e.key === 'Enter') {
+                    inputEl.blur(); 
+                }
+                else if (e.key === 'Tab') {
+                    e.preventDefault();
+                    inputEl.blur(); // Commit first
+                    // Move selection down
+                    editorSelection = (editorSelection + 1) % editorElements.length;
+                    SoundSys.blip();
+                    updateEditorVisuals();
+                }
+                e.stopPropagation(); // Stop global keydown
             });
+            
+            inputEl.addEventListener('click', (e) => e.stopPropagation()); // Don't trigger row click
+
             element.appendChild(inputEl);
             inputEl.focus();
+            updateEditorVisuals();
         }
 
-        // --- Helpers ---
-        async function resolveUserByNickOrEmail(identifier) {
-            const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
-            // Try Exact Match Email
-            let q = query(usersRef, where("email", "==", identifier));
-            let snapshot = await getDocs(q);
-            if (!snapshot.empty) return snapshot.docs[0].data();
-
-            // Try Exact Match DisplayName
-            q = query(usersRef, where("displayName", "==", identifier));
-            snapshot = await getDocs(q);
-            if (!snapshot.empty) return snapshot.docs[0].data();
-            
-            return null;
+        function commitInlineInput(wrapperElement, inputElement) {
+            const val = inputElement.value;
+            wrapperElement.textContent = val;
+            editorIsEditing = false;
+            updateEditorVisuals();
         }
 
+        function handleProfileEditorKey(e) {
+            // If editing text, capture input (Though native input handles this now, keeping safety)
+            if (editorIsEditing) {
+                return; 
+            }
+
+            // Navigation
+            if (e.key === 'Tab' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                editorSelection = (editorSelection + 1) % editorElements.length;
+                SoundSys.blip();
+                updateEditorVisuals();
+            } else if (e.key === 'ArrowUp') {
+                 e.preventDefault();
+                 editorSelection = (editorSelection - 1 + editorElements.length) % editorElements.length;
+                 SoundSys.blip();
+                 updateEditorVisuals();
+            }
+            // Actions (Desktop)
+            else if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                SoundSys.click();
+                
+                if (editorSelection === 0) { // Nick
+                    activateInlineInput(editNick);
+                }
+                else if (editorSelection === 1) { // Bio
+                    activateInlineInput(editBio);
+                }
+                else if (editorSelection === 2) { // Avatar
+                     fileInput.click();
+                }
+                else if (editorSelection === 3) { // Save
+                     saveProfileEditor();
+                }
+                else if (editorSelection === 4) { // Cancel
+                     closeProfileEditor();
+                }
+            }
+        }
+
+        // --- ASCII Art Processor ---
         async function fetchAscii(url) {
              const lowerUrl = url.toLowerCase();
              const isImage = /\.(jpg|jpeg|png|gif|webp)$/.test(lowerUrl);
-             if (isImage) return await convertImageToAscii(url);
-             const response = await fetch(url);
-             if (!response.ok) throw new Error("Network error");
-             return await response.text();
+             
+             if (isImage) {
+                 return await convertImageToAscii(url);
+             } else {
+                 // Try fetching as text (existing behavior)
+                 const response = await fetch(url);
+                 if (!response.ok) throw new Error("Network error: " + response.status);
+                 return await response.text();
+             }
         }
 
         function convertImageToAscii(url) {
@@ -1424,20 +1569,26 @@
                 const img = new Image();
                 img.crossOrigin = "Anonymous";
                 img.src = url;
+                
                 img.onload = () => {
-                    const cols = 100; // High Density
+                    const cols = 100; // Increased width for better resolution
                     const charAspect = 0.5; 
                     const aspect = img.height / img.width;
                     const rows = Math.floor(cols * aspect * charAspect);
+                    
                     const canvas = document.createElement('canvas');
                     canvas.width = cols;
                     canvas.height = rows;
                     const ctx = canvas.getContext('2d');
+                    
                     ctx.drawImage(img, 0, 0, cols, rows);
+                    
                     try {
                         const data = ctx.getImageData(0, 0, cols, rows).data;
                         let ascii = "";
+                        // Denser character ramp for smoother shading
                         const chars = " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$";
+                        
                         for (let y = 0; y < rows; y++) {
                             for (let x = 0; x < cols; x++) {
                                 const i = (y * cols + x) * 4;
@@ -1448,9 +1599,12 @@
                             ascii += "\n";
                         }
                         resolve(ascii);
-                    } catch (e) { reject(new Error("CORS blocked image data access.")); }
+                    } catch (e) {
+                        reject(new Error("CORS blocked image data access. Try using an image host like Imgur."));
+                    }
                 };
-                img.onerror = () => reject(new Error("Failed to load image."));
+                
+                img.onerror = () => reject(new Error("Failed to load image. Check URL."));
             });
         }
 
@@ -1462,43 +1616,90 @@
             switch (cmd) {
                 case 'help':
                     addMessage('SYSTEM', 'COMMANDS:', true);
-                    addMessage(null, '  login            - Sign in');
+                    addMessage(null, '  login            - Sign in with Google');
                     addMessage(null, '  logout           - Sign out');
-                    addMessage(null, '  post             - Create Log Entry');
-                    addMessage(null, '  profile [email]  - View Logs & Bio');
-                    addMessage(null, '  chat [email]     - Start Chat');
-                    addMessage(null, '  mentions         - Check tags');
-                    addMessage(null, '  ascii [url]      - Render ASCII');
+                    addMessage(null, '  set-bio          - Open Profile Editor');
+                    addMessage(null, '  whois [email]    - View User Profile');
+                    addMessage(null, '  mentions         - Check tags/mentions');
+                    addMessage(null, '  friend add [email]     - Add friend');
+                    addMessage(null, '  friend nick [email] [nick] - Set nickname');
+                    addMessage(null, '  friends          - List friends');
+                    addMessage(null, '  friends-email    - List emails & nicknames');
+                    addMessage(null, '  reqbox           - Check for new messages');
+                    addMessage(null, '  status [mode]    - online/away/busy');
+                    addMessage(null, '  chat [name/email] - Start chat');
+                    addMessage(null, '  ping [email]     - Check user availability');
+                    addMessage(null, '  neofetch         - Display system info');
+                    addMessage(null, '  burn [msg]       - Send self-destruct msg');
+                    addMessage(null, '  theme [color]    - Set color');
+                    addMessage(null, '  ascii [url]      - Render ASCII (Image or Text)');
+                    addMessage(null, '                     Type "ascii" with no url to upload.'); // Updated Help
+                    addMessage(null, '  emoji            - List emoji codes');
+                    addMessage(null, '  mute / unmute    - Toggle sounds');
                     addMessage(null, '  clear            - Clear screen');
                     break;
 
-                case 'clear': history.innerHTML = ''; break;
-                case 'post': openPostEditor(); break;
-                case 'profile': openProfileViewer(args[0]); break;
-                case 'set-bio': openProfileEditor(); break;
-                case 'whois': openProfileViewer(args[0]); break; // whois alias for profile
-                
-                case 'mentions': await showRecentMentions(); break;
-                case 'emoji': 
-                    addMessage('SYSTEM', 'AVAILABLE EMOJIS:', true);
-                    addMessage(null, Object.keys(EMOJI_MAP).join(' '));
+                case 'clear':
+                    history.innerHTML = '';
+                    break;
+
+                case 'set-bio':
+                    openProfileEditor();
+                    break;
+
+                case 'whois':
+                    if (args[0]) {
+                        await runWhois(args[0]);
+                    } else {
+                        // If no arg, show self
+                        await runWhois(currentUser.email);
+                    }
+                    break;
+
+                case 'mentions':
+                    await showRecentMentions();
+                    break;
+
+                case 'emoji':
+                    addMessage('SYSTEM', 'AVAILABLE EMOJIS (Type code to use):', true);
+                    const emojiList = Object.keys(EMOJI_MAP).join(' ');
+                    addMessage(null, emojiList);
                     break;
 
                 case 'status':
                     if (!ensureAuth()) return;
-                    if (args[0]) await updateStatus(args[0]);
+                    const validStatuses = ['online', 'away', 'busy'];
+                    if (args[0] && validStatuses.includes(args[0])) {
+                        await updateStatus(args[0]);
+                        addMessage('SYSTEM', `STATUS SET TO: ${args[0].toUpperCase()}`, true);
+                    } else {
+                        addMessage('SYSTEM', 'USAGE: status [online | away | busy]', true);
+                    }
                     break;
 
                 case 'burn':
-                    if (state.mode === 'CHAT') addMessage('ERROR', 'USE BURN INSIDE CHAT.', false, false, true);
-                    else addMessage('ERROR', 'ENTER A CHAT ROOM TO USE BURN.', false, false, true);
+                    if (state.mode === 'CHAT') {
+                        addMessage('ERROR', 'ENTER A CHAT ROOM TO USE BURN.', false, false, true);
+                    } else {
+                        addMessage('ERROR', 'ENTER A CHAT ROOM TO USE BURN.', false, false, true);
+                    }
                     break;
 
-                case 'mute': state.muted = true; addMessage('SYSTEM', 'MUTED.', true); break;
-                case 'unmute': state.muted = false; addMessage('SYSTEM', 'ACTIVE.', true); break;
+                case 'mute':
+                    state.muted = true;
+                    addMessage('SYSTEM', 'SOUNDS MUTED.', true);
+                    break;
+
+                case 'unmute':
+                    state.muted = false;
+                    SoundSys.init();
+                    SoundSys.blip(); 
+                    addMessage('SYSTEM', 'SOUNDS ACTIVE.', true);
+                    break;
                 
                 case 'ascii':
                     if (args[0]) {
+                        addMessage('SYSTEM', `FETCHING ASCII FROM ${args[0]}...`, true);
                         try {
                             const asciiArt = await fetchAscii(args[0]);
                             addMessage(null, asciiArt, false, false, false, true);
@@ -1506,42 +1707,246 @@
                             addMessage('ERROR', `FAILED: ${e.message}`, false, false, true);
                         }
                     } else {
+                        // No URL provided -> Trigger Upload
                         fileInput.click();
                     }
                     break;
 
                 case 'theme':
-                    if (args[0] && applyTheme(args[0])) addMessage('SYSTEM', `THEME: ${args[0].toUpperCase()}`, true);
+                    if (args[0] && applyTheme(args[0])) {
+                        addMessage('SYSTEM', `THEME SET TO ${args[0].toUpperCase()}`, true);
+                    } else {
+                        addMessage('SYSTEM', 'USAGE: theme [green|amber|blue|white|matrix]', true);
+                    }
                     break;
 
-                case 'login': handleLogin(); break;
-                case 'logout': signOut(auth); break;
+                case 'login':
+                    if (currentUser && !currentUser.isAnonymous) {
+                        addMessage('SYSTEM', 'ALREADY LOGGED IN.', true);
+                    } else {
+                        await handleLogin();
+                    }
+                    break;
+
+                case 'logout':
+                    if (currentUser && !currentUser.isAnonymous) {
+                        try {
+                            await signOut(auth);
+                            addMessage('SYSTEM', 'LOGGED OUT. REVERTING TO GUEST MODE...', true);
+                        } catch (e) {
+                            addMessage('ERROR', 'LOGOUT FAILED: ' + e.message, false, false, true);
+                        }
+                    } else {
+                        addMessage('SYSTEM', 'ALREADY IN GUEST MODE.', true);
+                    }
+                    break;
 
                 case 'friend':
                     if (!ensureAuth()) return;
-                    if (args[0] === 'add') addFriend(args[1]);
-                    else if (args[0] === 'nick') setNickname(args[1], args[2]);
+                    if (args[0] === 'add' && args[1]) {
+                        addFriend(args[1]);
+                    } else if (args[0] === 'nick' && args[1] && args[2]) {
+                        setNickname(args[1], args[2]);
+                    } else {
+                        addMessage('SYSTEM', 'USAGE: friend add [email] OR friend nick [email] [nick]', true);
+                    }
                     break;
 
-                case 'friends': if (ensureAuth()) listFriends(); break;
-                case 'friends-email': if (ensureAuth()) listFriendsEmails(); break;
-                case 'reqbox': if (ensureAuth()) checkReqBox(); break;
-                case 'chat': if (ensureAuth()) startChat(args[0]); break;
-                case 'date': addMessage('SYSTEM', new Date().toString(), true); break;
-                case 'neofetch': runNeofetch(); break;
-                case 'ping': if (ensureAuth()) pingUser(args[0]); break;
-                case 'exit': break;
+                case 'friends':
+                    if (!ensureAuth()) return;
+                    listFriends();
+                    break;
 
-                default: addMessage('SYSTEM', `UNKNOWN COMMAND: ${cmd}`, true);
+                case 'friends-email':
+                    if (!ensureAuth()) return;
+                    listFriendsEmails();
+                    break;
+
+                case 'reqbox':
+                    if (!ensureAuth()) return;
+                    checkReqBox();
+                    break;
+
+                case 'chat':
+                    if (!ensureAuth()) return;
+                    if (args[0]) {
+                        startChat(args[0]);
+                    } else {
+                        addMessage('SYSTEM', 'USAGE: chat [name/email]', true);
+                    }
+                    break;
+
+                case 'date':
+                    addMessage('SYSTEM', new Date().toString(), true);
+                    break;
+
+                case 'neofetch':
+                    runNeofetch();
+                    break;
+
+                case 'ping':
+                    if (!ensureAuth()) return;
+                    if (args[0]) {
+                        await pingUser(args[0]);
+                    } else {
+                        addMessage('SYSTEM', 'USAGE: ping [email]', true);
+                    }
+                    break;
+
+                case 'exit':
+                    break;
+
+                default:
+                    addMessage('SYSTEM', `UNKNOWN COMMAND: ${cmd}`, true);
             }
         }
 
         function ensureAuth() {
             if (!currentUser || currentUser.isAnonymous) {
-                addMessage('ERROR', 'LOGIN REQUIRED.', false, false, true);
+                addMessage('ERROR', 'ACCESS DENIED. LOGIN REQUIRED.', false, false, true);
                 return false;
             }
             return true;
+        }
+
+        // --- Feature Implementation ---
+
+        async function showRecentMentions() {
+            if (!ensureAuth()) return;
+            addMessage('SYSTEM', 'FETCHING RECENT MENTIONS...', true);
+            
+            try {
+                const notifRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'notifications');
+                // Remove orderBy to avoid indexing issues if possible, or keep simple
+                // If it fails, we remove orderBy. For now keeping it simple.
+                const q = query(notifRef, limit(10)); 
+                // Removed orderBy timestamp to prevent index errors. Results may not be perfectly ordered but will work.
+                
+                const snap = await getDocs(q);
+                
+                if (snap.empty) {
+                    addMessage(null, 'NO RECENT MENTIONS FOUND.');
+                    return;
+                }
+                
+                // Sort in JS
+                const notifs = [];
+                snap.forEach(doc => notifs.push(doc.data()));
+                notifs.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+                
+                notifs.forEach(data => {
+                    const time = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleTimeString() : '??:??';
+                    addMessage(null, `[${time}] ${data.fromName}: ${data.preview}`);
+                });
+                
+            } catch(e) {
+                addMessage('ERROR', 'FAILED: ' + e.message, false, false, true);
+            }
+        }
+
+        async function runWhois(identifier) {
+            addMessage('SYSTEM', `QUERYING DIRECTORY FOR: ${identifier}...`, true);
+            
+            try {
+                const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
+                // Try Exact Match
+                let q = query(usersRef, where("email", "==", identifier));
+                let snapshot = await getDocs(q);
+                
+                // Fallback: Try Nickname (local friend logic not applied here for global whois, simplifying)
+                if (snapshot.empty) {
+                     // Try nickname search if we implemented public nicknames, but for now strict email
+                     addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
+                     return;
+                }
+                
+                const d = snapshot.docs[0].data();
+                const joined = d.joinedAt ? new Date(d.joinedAt.seconds * 1000).toLocaleDateString() : 'Unknown';
+                const status = d.status ? d.status.toUpperCase() : 'OFFLINE';
+                
+                addMessage(null, `+-----------------------------------------+`);
+                addMessage(null, `| USER:   ${d.displayName || d.email}`);
+                addMessage(null, `| EMAIL:  ${d.email}`);
+                addMessage(null, `| STATUS: ${status}`);
+                addMessage(null, `| SINCE:  ${joined}`);
+                addMessage(null, `+-----------------------------------------+`);
+                
+                if (d.bio) {
+                    addMessage(null, `BIO:\n${d.bio}`);
+                    addMessage(null, `+-----------------------------------------+`);
+                }
+                
+                if (d.avatarAscii) {
+                    addMessage(null, `AVATAR:`);
+                    addMessage(null, d.avatarAscii, false, false, false, true);
+                    addMessage(null, `+-----------------------------------------+`);
+                }
+
+            } catch(e) {
+                 addMessage('ERROR', 'WHOIS FAILED: ' + e.message, false, false, true);
+            }
+        }
+
+        function runNeofetch() {
+            const now = performance.now();
+            const uptimeMins = Math.floor(now / 60000);
+            const uptimeSecs = Math.floor((now % 60000) / 1000);
+            
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            
+            // Simplified User Agent parsing
+            let os = 'Unknown OS';
+            if (navigator.userAgent.indexOf("Win") != -1) os = "Windows";
+            if (navigator.userAgent.indexOf("Mac") != -1) os = "MacOS";
+            if (navigator.userAgent.indexOf("Linux") != -1) os = "Linux";
+            if (navigator.userAgent.indexOf("Android") != -1) os = "Android";
+            if (navigator.userAgent.indexOf("like Mac") != -1) os = "iOS";
+
+            let browser = 'Unknown Browser';
+            if (navigator.userAgent.indexOf("Chrome") != -1) browser = "Chrome";
+            if (navigator.userAgent.indexOf("Firefox") != -1) browser = "Firefox";
+            if (navigator.userAgent.indexOf("Safari") != -1 && navigator.userAgent.indexOf("Chrome") == -1) browser = "Safari";
+
+            const user = currentUser ? (currentUser.displayName || currentUser.email.split('@')[0]) : 'guest';
+            const authStatus = currentUser && !currentUser.isAnonymous ? 'Authenticated' : 'Anonymous';
+            const email = currentUser && !currentUser.isAnonymous ? currentUser.email : 'N/A';
+
+            const logo = [
+                "   _______   ",
+                "  |__   __|  ",
+                "     | |     ",
+                "     | |     ",
+                "     | |     ",
+                "     |_|     "
+            ];
+
+            const info = [
+                `USER:    ${user}@tchat`,
+                `--------`,
+                `OS:      ${os} (Web Kernel)`,
+                `BROWSER: ${browser}`,
+                `UPTIME:  ${uptimeMins}m ${uptimeSecs}s`,
+                `RES:     ${width}x${height}`,
+                `THEME:   ${state.theme}`,
+                `STATUS:  ${authStatus}`,
+                `EMAIL:   ${email}`
+            ];
+
+            let output = "";
+            const logoWidth = 16;
+            const maxLines = Math.max(logo.length, info.length);
+            
+            for(let i=0; i<maxLines; i++) {
+                const logoLine = (logo[i] || "").padEnd(logoWidth, " ");
+                const infoLine = info[i] || "";
+                output += `${logoLine}  ${infoLine}\n`;
+            }
+
+            // Color bar at the bottom
+            output += "\n   \u001b[31m███\u001b[32m███\u001b[33m███\u001b[34m███\u001b[35m███\u001b[36m███";
+            
+            addMessage(null, output, false, false, false, true);
         }
 
         async function pingUser(targetEmail) {
@@ -1551,129 +1956,291 @@
                 const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
                 const q = query(usersRef, where("email", "==", targetEmail));
                 const snapshot = await getDocs(q);
+                
+                const ms = Date.now() - start;
+
                 if (!snapshot.empty) {
                     const data = snapshot.docs[0].data();
-                    const ms = Date.now() - start;
-                    addMessage('SYSTEM', `REPLY: status=${data.status} time=${ms}ms`, true);
+                    const status = data.status ? data.status.toUpperCase() : 'UNKNOWN';
+                    addMessage('SYSTEM', `REPLY FROM ${targetEmail}: status=${status} time=${ms}ms`, true);
                 } else {
-                    addMessage('ERROR', `TIMEOUT.`, false, false, true);
+                    addMessage('ERROR', `REQUEST TIMED OUT: ${targetEmail} not found.`, false, false, true);
                 }
-            } catch (error) { addMessage('ERROR', error.message, false, false, true); }
+            } catch (error) {
+                addMessage('ERROR', 'PING ERROR: ' + error.message, false, false, true);
+            }
         }
 
         async function addFriend(targetEmail) {
+            addMessage('SYSTEM', `SEARCHING...`, true);
             try {
                 const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
                 const q = query(usersRef, where("email", "==", targetEmail));
                 const snapshot = await getDocs(q);
-                if (snapshot.empty) { addMessage('ERROR', 'USER NOT FOUND.', false, false, true); return; }
+
+                if (snapshot.empty) {
+                    addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
+                    return;
+                }
                 const targetUser = snapshot.docs[0].data();
                 const myFriendsRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'friends', targetUser.uid);
-                await setDoc(myFriendsRef, { email: targetUser.email, uid: targetUser.uid, displayName: targetUser.displayName }, { merge: true });
+                await setDoc(myFriendsRef, {
+                    email: targetUser.email,
+                    uid: targetUser.uid,
+                    displayName: targetUser.displayName,
+                    addedAt: serverTimestamp()
+                }, { merge: true });
                 addMessage('SYSTEM', `FRIEND ADDED.`, true);
-            } catch (e) { addMessage('ERROR', e.message, false, false, true); }
+            } catch (error) {
+                addMessage('ERROR', 'DB ERROR: ' + error.message, false, false, true);
+            }
         }
 
         async function setNickname(targetEmail, nickname) {
+            addMessage('SYSTEM', `SETTING NICKNAME...`, true);
             try {
+                // Find friend by email in my friends list
                 const friendsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'friends');
                 const q = query(friendsRef, where("email", "==", targetEmail));
                 const snapshot = await getDocs(q);
-                if (snapshot.empty) { addMessage('ERROR', 'FRIEND NOT FOUND.', false, false, true); return; }
+
+                if (snapshot.empty) {
+                    addMessage('ERROR', 'FRIEND NOT FOUND IN LIST. ADD FIRST.', false, false, true);
+                    return;
+                }
+
                 const friendDoc = snapshot.docs[0];
                 await setDoc(friendDoc.ref, { nickname: nickname }, { merge: true });
-                addMessage('SYSTEM', `NICKNAME SET.`, true);
-            } catch (e) { addMessage('ERROR', e.message, false, false, true); }
+                addMessage('SYSTEM', `NICKNAME SET: ${nickname} -> ${targetEmail}`, true);
+            } catch (error) {
+                addMessage('ERROR', 'UPDATE FAILED: ' + error.message, false, false, true);
+            }
         }
 
         async function listFriends() {
+            addMessage('SYSTEM', 'FETCHING FRIEND LIST...', true);
             try {
                 const friendsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'friends');
                 const snapshot = await getDocs(friendsRef);
-                if (snapshot.empty) { addMessage(null, 'No friends.'); return; }
-                snapshot.forEach(doc => {
-                    const f = doc.data();
-                    addMessage(null, `> ${f.nickname || f.displayName || f.email}`);
+                if (snapshot.empty) {
+                    addMessage(null, 'No friends found.');
+                    return;
+                }
+                
+                // Fetch status for each friend
+                const promises = snapshot.docs.map(async (docSnap) => {
+                    const friend = docSnap.data();
+                    const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', friend.uid);
+                    const profileSnap = await getDoc(profileRef);
+                    let status = 'offline';
+                    if (profileSnap.exists()) {
+                        status = profileSnap.data().status || 'offline';
+                    }
+                    return { ...friend, status };
                 });
-            } catch (e) { addMessage('ERROR', e.message, false, false, true); }
+
+                const friendsWithStatus = await Promise.all(promises);
+
+                friendsWithStatus.forEach(f => {
+                    let dotClass = 'status-online'; 
+                    if (f.status === 'away') dotClass = 'status-away';
+                    if (f.status === 'busy') dotClass = 'status-busy';
+                    
+                    const displayName = f.nickname ? `${f.nickname} <${f.email}>` : f.email;
+                    
+                    const div = document.createElement('div');
+                    div.className = 'message-line';
+                    div.innerHTML = `<span class="status-dot ${dotClass}">●</span> ${displayName}`;
+                    history.appendChild(div);
+                });
+                scrollToBottom();
+
+            } catch (error) {
+                addMessage('ERROR', error.message, false, false, true);
+            }
         }
 
         async function listFriendsEmails() {
-             try {
+            addMessage('SYSTEM', 'FETCHING CONTACTS...', true);
+            try {
                 const friendsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'friends');
                 const snapshot = await getDocs(friendsRef);
-                snapshot.forEach(doc => {
-                    const f = doc.data();
-                    addMessage(null, `> ${f.email} (${f.nickname || 'No Nick'})`);
+                if (snapshot.empty) {
+                    addMessage(null, 'No friends found.');
+                    return;
+                }
+                
+                snapshot.forEach(docSnap => {
+                    const f = docSnap.data();
+                    const info = f.nickname ? `NICK: ${f.nickname} | EMAIL: ${f.email}` : `EMAIL: ${f.email}`;
+                    addMessage(null, info);
                 });
-            } catch (e) { addMessage('ERROR', e.message, false, false, true); }
+                scrollToBottom();
+
+            } catch (error) {
+                addMessage('ERROR', error.message, false, false, true);
+            }
         }
 
         async function checkReqBox() {
-            addMessage('SYSTEM', 'SCANNING...', true);
+            addMessage('SYSTEM', 'SCANNING FREQUENCIES (REQBOX)...', true);
             try {
+                // 1. Fetch my friend list to build a lookup set
+                const friendsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'friends');
+                const friendsSnap = await getDocs(friendsRef);
+                const friendMap = new Map(); // uid -> { nickname, email }
+                friendsSnap.forEach(doc => {
+                    const data = doc.data();
+                    friendMap.set(data.uid, data);
+                });
+
+                // 2. Fetch messages sent to me
                 const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
                 const q = query(msgsRef, where('receiverId', '==', currentUser.uid));
                 const snapshot = await getDocs(q);
-                const senders = new Set();
-                snapshot.forEach(doc => senders.add(doc.data().senderDisplayName));
-                if (senders.size === 0) addMessage(null, 'NO MESSAGES.');
-                else {
-                    addMessage(null, 'MESSAGES FROM:');
-                    senders.forEach(s => addMessage(null, `> ${s}`));
+
+                if (snapshot.empty) {
+                    addMessage(null, 'NO MESSAGES FOUND.');
+                    return;
                 }
-            } catch (e) { addMessage('ERROR', e.message, false, false, true); }
+
+                // 3. Aggregate unique senders
+                const senders = new Set();
+                snapshot.forEach(doc => {
+                    senders.add(doc.data().senderId);
+                });
+
+                if (senders.size === 0) {
+                    addMessage(null, 'NO MESSAGES FOUND.');
+                    return;
+                }
+
+                addMessage(null, `FOUND MESSAGES FROM ${senders.size} USER(S):`);
+
+                // 4. List each sender, marking friends
+                for (const uid of senders) {
+                    // Check if friend
+                    if (friendMap.has(uid)) {
+                        const friend = friendMap.get(uid);
+                        const displayName = friend.nickname ? `${friend.nickname} <${friend.email}>` : friend.email;
+                        addMessage(null, `> [FRIEND] ${displayName}`);
+                    } else {
+                        // Stranger - fetch profile for email
+                        const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', uid);
+                        const snap = await getDoc(profileRef);
+                        if (snap.exists()) {
+                            const data = snap.data();
+                            addMessage(null, `> [NEW]    ${data.email}`);
+                        } else {
+                            addMessage(null, `> [NEW]    UNKNOWN_USER [${uid.slice(0,5)}..]`);
+                        }
+                    }
+                }
+                
+                addMessage('SYSTEM', "TYPE 'chat [email/nick]' TO REPLY.", true);
+
+            } catch (error) {
+                console.error(error);
+                if (error.message.includes('index')) {
+                     addMessage('ERROR', 'INDEX MISSING. CHECK CONSOLE.', false, false, true);
+                } else {
+                     addMessage('ERROR', 'SCAN FAILED: ' + error.message, false, false, true);
+                }
+            }
         }
 
         async function startChat(identifier) {
             try {
-                let friendData = await resolveUserByNickOrEmail(identifier); 
-                if (!friendData) {
-                     const friendsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'friends');
-                     let q = query(friendsRef, where("nickname", "==", identifier));
-                     let s = await getDocs(q);
-                     if(s.empty) {
-                         q = query(friendsRef, where("email", "==", identifier));
-                         s = await getDocs(q);
-                     }
-                     if(!s.empty) friendData = s.docs[0].data();
+                let friendData = null;
+                
+                // 1. Try finding in friends by nickname
+                const friendsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'friends');
+                let q = query(friendsRef, where("nickname", "==", identifier));
+                let snapshot = await getDocs(q);
+
+                if (!snapshot.empty) {
+                    friendData = snapshot.docs[0].data();
+                } else {
+                    // 2. Try finding in friends by email
+                    q = query(friendsRef, where("email", "==", identifier));
+                    snapshot = await getDocs(q);
+                    if (!snapshot.empty) {
+                        friendData = snapshot.docs[0].data();
+                    }
                 }
 
-                if (!friendData) { addMessage('ERROR', 'USER NOT FOUND.', false, false, true); return; }
+                // 3. If not in friends, try Public Directory (Global Lookup)
+                if (!friendData) {
+                    const publicUsersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
+                    const qPub = query(publicUsersRef, where("email", "==", identifier));
+                    const snapPub = await getDocs(qPub);
+                    
+                    if (!snapPub.empty) {
+                        friendData = snapPub.docs[0].data();
+                        addMessage('SYSTEM', 'USER FOUND IN PUBLIC DIRECTORY (NOT IN FRIENDS).', true);
+                    }
+                }
+
+                if (!friendData) {
+                    addMessage('ERROR', 'USER NOT FOUND (CHECK EMAIL/NICK).', false, false, true);
+                    return;
+                }
 
                 currentChatPartner = friendData;
+                
                 state.mode = 'CHAT';
-                history.innerHTML = '';
-                addMessage('SYSTEM', `--- CONNECTED TO ${friendData.displayName || friendData.email} ---`, true);
+                history.innerHTML = ''; 
+                const chatName = friendData.nickname || friendData.email;
+                addMessage('SYSTEM', `--- CONNECTION ESTABLISHED: ${chatName} ---`, true);
+                addMessage('SYSTEM', `CMDS: 'burn [msg]', 'ascii [url]', 'exit'`, true);
                 updatePrompt(currentUser.email);
 
                 const convoId = getConversationId(currentUser.uid, friendData.uid);
                 const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
-                const qMsg = query(msgsRef, where('conversationId', '==', convoId)); 
+                
+                const qMsg = query(msgsRef, where('conversationId', '==', convoId), orderBy('timestamp', 'asc'));
 
                 if (messagesUnsubscribe) messagesUnsubscribe();
-                
-                let allMsgs = [];
-                messagesUnsubscribe = onSnapshot(qMsg, (snapshot) => {
-                    snapshot.docChanges().forEach(change => {
-                        if (change.type === 'added') allMsgs.push(change.doc.data());
-                    });
-                    allMsgs.sort((a,b) => (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0));
-                    
-                    history.innerHTML = '';
-                    addMessage('SYSTEM', `--- CONNECTED TO ${friendData.displayName || friendData.email} ---`, true);
-                    allMsgs.forEach(msg => {
-                        const sender = msg.senderId === currentUser.uid ? 'ME' : (friendData.nickname || friendData.displayName);
-                        addMessage(sender, msg.text, false, true, false, msg.isAscii, null, msg.burn);
-                    });
-                });
 
-            } catch (e) { addMessage('ERROR', e.message, false, false, true); }
+                messagesUnsubscribe = onSnapshot(qMsg, (snapshot) => {
+                    snapshot.docChanges().forEach((change) => {
+                        if (change.type === "added") {
+                            const msg = change.doc.data();
+                            let senderName;
+                            if (msg.senderId === currentUser.uid) {
+                                senderName = 'ME';
+                            } else {
+                                senderName = friendData.nickname || friendData.email.split('@')[0];
+                            }
+                            addMessage(senderName, msg.text, false, true, false, msg.isAscii || false, change.doc.id, msg.burn);
+                        }
+                        if (change.type === "removed") {
+                            const msgId = change.doc.id;
+                            const el = msgMap.get(msgId);
+                            if (el) {
+                                el.style.opacity = '0';
+                                setTimeout(() => el.remove(), 500); 
+                                msgMap.delete(msgId);
+                            }
+                        }
+                    });
+                }, (error) => {
+                     if(error.message.includes("index")) {
+                         addMessage('ERROR', 'INDEX REQUIRED. Check console.', false, false, true);
+                         console.error(error);
+                     }
+                });
+            } catch (error) {
+                addMessage('ERROR', 'CHAT ERROR: ' + error.message, false, false, true);
+            }
         }
 
         async function processChatInput(text) {
-            if (text.toLowerCase() === 'exit') {
+            const lowText = text.toLowerCase();
+            
+            if (lowText === 'exit') {
                 if (messagesUnsubscribe) messagesUnsubscribe();
+                messagesUnsubscribe = null;
                 state.mode = 'COMMAND';
                 currentChatPartner = null;
                 history.innerHTML = '';
@@ -1681,43 +2248,111 @@
                 updatePrompt(currentUser.email.split('@')[0]);
                 return;
             }
-            if (text.toLowerCase() === 'ascii') { fileInput.click(); return; }
-            
+
+            // Trigger upload from chat
+            if (lowText === 'ascii' || lowText === 'upload') {
+                fileInput.click();
+                return;
+            }
+
             let isBurn = false;
-            let content = text;
-            if (content.toLowerCase().startsWith('burn ')) { isBurn = true; content = content.substring(5); }
-            content = parseEmojis(content);
+            let isAscii = false;
+            let finalBody = text;
             
-            await sendMessage(content, false, isBurn);
+            if (lowText.startsWith('burn ')) {
+                isBurn = true;
+                finalBody = text.substring(5); // Remove 'burn '
+            }
+
+            if (finalBody.toLowerCase().startsWith('ascii ')) {
+                addMessage('SYSTEM', 'FETCHING ASCII ART...', true);
+                const url = finalBody.substring(6).trim();
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error("Network error");
+                    finalBody = await response.text();
+                    isAscii = true;
+                } catch (e) {
+                    addMessage('ERROR', 'FAILED TO FETCH ASCII: ' + e.message, false, false, true);
+                    return;
+                }
+            }
+
+            finalBody = parseEmojis(finalBody);
+            finalBody = finalBody.replace(/\(\?n\)/g, '\n');
+
+            await sendMessage(finalBody, isAscii, isBurn);
         }
 
         async function sendMessage(text, isAscii, isBurn) {
             const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
-            const convoId = getConversationId(currentUser.uid, currentChatPartner.uid);
             
+            // Determine IDs
+            let convoId, receiverId;
+            convoId = getConversationId(currentUser.uid, currentChatPartner.uid);
+            receiverId = currentChatPartner.uid;
+
             try {
-                const docRef = await addDoc(msgsRef, {
+                // --- MENTION PARSING ---
+                // Scan for @(name). Only works if we can find the user.
+                
+                // Regex to find @(mentions)
+                const mentionMatches = text.match(/@\((.*?)\)/g);
+                if (mentionMatches && mentionMatches.length > 0) {
+                    mentionMatches.forEach(async (mention) => {
+                        const targetName = mention.substring(2, mention.length - 1); // remove @( and )
+                        
+                        // Query user by displayName
+                        const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
+                        const q = query(usersRef, where("displayName", "==", targetName));
+                        const snap = await getDocs(q);
+                        
+                        if (!snap.empty) {
+                            const targetUser = snap.docs[0].data();
+                            // Create notification
+                            if (targetUser.uid !== currentUser.uid) {
+                                const notifRef = collection(db, 'artifacts', appId, 'users', targetUser.uid, 'notifications');
+                                await addDoc(notifRef, {
+                                    type: 'mention',
+                                    from: currentUser.uid,
+                                    fromName: currentUser.displayName || currentUser.email,
+                                    preview: text.substring(0, 50),
+                                    timestamp: serverTimestamp()
+                                });
+                            }
+                        }
+                    });
+                }
+                // -----------------------
+
+                const payload = {
                     conversationId: convoId,
                     text: text,
                     senderId: currentUser.uid,
-                    senderDisplayName: currentUser.displayName,
-                    receiverId: currentChatPartner.uid,
+                    senderDisplayName: currentUser.displayName || currentUser.email.split('@')[0],
+                    receiverId: receiverId,
                     burn: isBurn,
                     isAscii: isAscii,
                     timestamp: serverTimestamp()
-                });
-                if(isBurn) setTimeout(() => deleteDoc(docRef), 10000);
-            } catch(e) { addMessage('ERROR', 'SEND FAILED.', false, false, true); }
+                };
+
+                const docRef = await addDoc(msgsRef, payload);
+
+                if (isBurn) {
+                    setTimeout(async () => {
+                        try {
+                            await deleteDoc(docRef);
+                        } catch(e) { console.error("Burn failed", e); }
+                    }, 10000);
+                }
+
+            } catch (e) {
+                addMessage('ERROR', 'SEND FAILED: ' + e.message, false, false, true);
+            }
         }
 
-        function getConversationId(uid1, uid2) { return [uid1, uid2].sort().join('_'); }
-
-        function runNeofetch() {
-             addMessage(null, `
-             USER: ${currentUser ? currentUser.email : 'Guest'}
-             OS:   Web Terminal
-             TIME: ${new Date().toLocaleTimeString()}
-             `, false, false, false, true);
+        function getConversationId(uid1, uid2) {
+            return [uid1, uid2].sort().join('_');
         }
 
     </script>
