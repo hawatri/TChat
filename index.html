@@ -152,7 +152,7 @@
 
         .input-line {
             display: flex;
-            align-items: center;
+            align-items: flex-start; /* Fix for multiline growing upwards */
             border-top: 1px dashed rgba(51, 255, 0, 0.3);
             padding-top: 15px;
             padding-bottom: 5px;
@@ -164,14 +164,15 @@
             z-index: 5;
         }
 
-        .prompt { margin-right: 15px; font-weight: bold; }
+        .prompt { margin-right: 15px; font-weight: bold; margin-top: 2px; }
 
         .cmd-wrapper {
             position: relative;
             flex-grow: 1;
             display: flex;
-            align-items: center;
-            height: 1.5rem;
+            align-items: flex-start;
+            min-height: 1.5rem; /* Allow growing */
+            height: auto;
         }
 
         #command-input {
@@ -182,25 +183,34 @@
             height: 100%;
             opacity: 0;
             z-index: 10;
-            cursor: default;
+            cursor: text;
             font-family: 'VT323', monospace;
             font-size: 1.5rem;
+            line-height: 1.5rem;
             border: none;
             outline: none;
             background: transparent;
             color: transparent;
+            resize: none;
+            overflow: hidden;
+            white-space: pre-wrap; /* Enable Wrapping */
+            word-break: break-all;
+            padding: 0;
+            margin: 0;
         }
 
         #cmd-display {
             font-family: 'VT323', monospace;
             font-size: 1.5rem;
+            line-height: 1.5rem;
             color: var(--terminal-main);
             text-shadow: 0 0 4px var(--terminal-glow);
-            white-space: pre;
+            white-space: pre-wrap; /* Enable Wrapping */
+            word-break: break-all;
             pointer-events: none;
-            display: flex;
+            display: block; /* Changed from flex to block for wrapping */
             width: 100%;
-            overflow: hidden;
+            overflow: visible;
         }
 
         #cmd-cursor {
@@ -210,6 +220,7 @@
             min-width: 1ch;
             display: inline-block;
             text-align: center;
+            vertical-align: text-bottom;
         }
 
         .input-line:not(:focus-within) #cmd-cursor {
@@ -221,7 +232,7 @@
 
         #autocomplete-menu {
             position: absolute;
-            bottom: 120%; 
+            bottom: 100%; 
             left: 0;
             min-width: 200px;
             max-height: 250px;
@@ -270,6 +281,7 @@
             align-items: center;
             justify-content: center;
             user-select: none;
+            margin-top: 2px;
         }
 
         #tab-btn:active {
@@ -426,7 +438,8 @@
                 <span class="prompt" id="prompt-span">...</span>
                 <div class="cmd-wrapper">
                     <div id="autocomplete-menu"></div>
-                    <input type="text" id="command-input" autocomplete="off">
+                    <!-- Switched to Textarea for multiline -->
+                    <textarea id="command-input" rows="1" spellcheck="false" autocomplete="off"></textarea>
                     <input type="file" id="file-upload" accept="image/*" style="display:none">
                     <div id="cmd-display">
                         <span id="cmd-before"></span><span id="cmd-cursor">&nbsp;</span><span id="cmd-after"></span>
@@ -453,7 +466,7 @@
             
             <div class="editor-row" id="row-avatar">
                 <span class="field-label">AVATAR:</span>
-                <span class="field-value" id="edit-avatar">[ TAP TO UPLOAD ]</span>
+                <span class="field-value" id="edit-avatar">[ TAP/SPACE TO UPLOAD ]</span>
             </div>
             
             <div class="editor-actions">
@@ -1223,6 +1236,7 @@
                     input.value = '';
                     updateInputDisplay();
                 }
+                event.preventDefault(); // Prevent newline in textarea
             }
             requestAnimationFrame(updateInputDisplay);
         });
@@ -1307,9 +1321,6 @@
         }
 
         function setupEditorClicks() {
-            // Safe to re-add, if needed, or add once. 
-            // Since this runs in a module script, we can just attach them once via ID if possible
-            // But openProfileEditor calls this to be safe.
             // Using .onclick to prevent duplicate listeners if called multiple times
             document.getElementById('row-nick').onclick = () => handleEditorInteraction(0);
             document.getElementById('row-bio').onclick = () => handleEditorInteraction(1);
@@ -1366,10 +1377,18 @@
                 commitInlineInput(element, inputEl);
             });
             
-            // Commit on Enter
+            // Commit on Enter or Tab
             inputEl.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
                     inputEl.blur(); 
+                }
+                else if (e.key === 'Tab') {
+                    e.preventDefault();
+                    inputEl.blur(); // Commit first
+                    // Move selection down
+                    editorSelection = (editorSelection + 1) % editorElements.length;
+                    SoundSys.blip();
+                    updateEditorVisuals();
                 }
                 e.stopPropagation(); // Stop global keydown
             });
