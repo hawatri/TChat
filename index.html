@@ -306,11 +306,12 @@
         .editor-row {
             display: flex;
             justify-content: space-between;
+            align-items: center; /* Better vertical alignment with input */
             padding: 8px 10px;
             border-bottom: 1px dotted rgba(51, 255, 0, 0.2);
             font-size: 1.2rem;
             cursor: pointer;
-            user-select: none; /* Prevent text selection highlight on touch */
+            user-select: none; 
         }
 
         .editor-row.active {
@@ -318,18 +319,34 @@
         }
         
         .editor-row.editing .field-value {
-            background-color: var(--terminal-main);
-            color: var(--terminal-bg);
-            animation: blink-bg 1s infinite;
-        }
-
-        @keyframes blink-bg {
-             0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; }
+            /* No longer blinking background for whole cell, using input style */
         }
 
         .field-label { width: 30%; font-weight: bold; }
-        .field-value { width: 65%; white-space: pre-wrap; word-break: break-all; min-height: 1.5em; border-bottom: 1px dashed var(--terminal-main); }
+        .field-value { 
+            width: 65%; 
+            white-space: pre-wrap; 
+            word-break: break-all; 
+            min-height: 1.5em; 
+            border-bottom: 1px dashed var(--terminal-main); 
+            display: flex; 
+            align-items: center;
+        }
         
+        /* New Style for Inline Input */
+        .terminal-inline-input {
+            background: transparent;
+            border: none;
+            color: var(--terminal-main);
+            font-family: 'VT323', monospace;
+            font-size: 1.2rem;
+            width: 100%;
+            outline: none;
+            padding: 0;
+            margin: 0;
+            text-shadow: 0 0 4px var(--terminal-glow);
+        }
+
         .editor-actions {
             margin-top: 10px;
             display: flex;
@@ -1315,14 +1332,10 @@
             SoundSys.click();
             
             if (index === 0) { // Nick
-                const current = editNick.textContent;
-                const newVal = prompt("ENTER NICKNAME:", current);
-                if (newVal !== null) editNick.textContent = newVal;
+                activateInlineInput(editNick);
             } 
             else if (index === 1) { // Bio
-                const current = editBio.textContent;
-                const newVal = prompt("ENTER BIO:", current);
-                if (newVal !== null) editBio.textContent = newVal;
+                activateInlineInput(editBio);
             }
             else if (index === 2) { // Avatar
                 fileInput.click();
@@ -1335,32 +1348,50 @@
             }
         }
 
-        function handleProfileEditorKey(e) {
-            // If editing text, capture input
-            if (editorIsEditing) {
-                const currentEl = editorElements[editorSelection];
-                const valueSpan = currentEl.querySelector('.field-value');
-                
+        function activateInlineInput(element) {
+            // If already has input, ignore
+            if (element.querySelector('input')) return;
+
+            editorIsEditing = true;
+            const currentText = element.textContent;
+            element.textContent = ''; // Clear text
+            
+            const inputEl = document.createElement('input');
+            inputEl.type = 'text';
+            inputEl.value = currentText;
+            inputEl.className = 'terminal-inline-input';
+            
+            // Commit on blur
+            inputEl.addEventListener('blur', () => {
+                commitInlineInput(element, inputEl);
+            });
+            
+            // Commit on Enter
+            inputEl.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
-                    e.preventDefault();
-                    editorIsEditing = false;
-                    SoundSys.click();
-                    updateEditorVisuals();
-                    return;
+                    inputEl.blur(); 
                 }
-                
-                if (e.key === 'Backspace') {
-                    valueSpan.textContent = valueSpan.textContent.slice(0, -1);
-                    SoundSys.click();
-                    return;
-                }
-                
-                if (e.key.length === 1) {
-                    valueSpan.textContent += e.key;
-                    SoundSys.click();
-                    return;
-                }
-                return;
+                e.stopPropagation(); // Stop global keydown
+            });
+            
+            inputEl.addEventListener('click', (e) => e.stopPropagation()); // Don't trigger row click
+
+            element.appendChild(inputEl);
+            inputEl.focus();
+            updateEditorVisuals();
+        }
+
+        function commitInlineInput(wrapperElement, inputElement) {
+            const val = inputElement.value;
+            wrapperElement.textContent = val;
+            editorIsEditing = false;
+            updateEditorVisuals();
+        }
+
+        function handleProfileEditorKey(e) {
+            // If editing text, capture input (Though native input handles this now, keeping safety)
+            if (editorIsEditing) {
+                return; 
             }
 
             // Navigation
@@ -1380,9 +1411,11 @@
                 e.preventDefault();
                 SoundSys.click();
                 
-                if (editorSelection === 0 || editorSelection === 1) { // Nick / Bio
-                    editorIsEditing = true;
-                    updateEditorVisuals();
+                if (editorSelection === 0) { // Nick
+                    activateInlineInput(editNick);
+                }
+                else if (editorSelection === 1) { // Bio
+                    activateInlineInput(editBio);
                 }
                 else if (editorSelection === 2) { // Avatar
                      fileInput.click();
