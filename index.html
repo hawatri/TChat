@@ -508,7 +508,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signInAnonymously, setPersistence, browserLocalPersistence, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, setDoc, doc, getDocs, getDoc, deleteDoc, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, query, where, onSnapshot, orderBy, serverTimestamp, setDoc, doc, getDocs, getDoc, deleteDoc, limit, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Configuration ---
         const appId = 'tchat-terminal'; 
@@ -534,7 +534,9 @@
         let currentChatPartner = null; 
         let messagesUnsubscribe = null;
         let notificationUnsubscribe = null;
+        let channelMetaUnsubscribe = null;
         let activeRadioParticipants = new Set(); // Stores display names for radio autocomplete
+        let currentChannelAdmins = []; // Array of Admin UIDs for current radio
 
         const state = {
             mode: 'COMMAND', // COMMAND, CHAT, RADIO, PROFILE_EDIT
@@ -552,7 +554,7 @@
             'help', 'login', 'logout', 'friend', 'friends', 'friends-email', 'chat', 'reqbox', 'radio',
             'burn', 'theme', 'ascii', 'mute', 'unmute', 
             'clear', 'status', 'date', 'exit', 'emoji', 'ping', 'neofetch', 'set-bio', 'whois', 'mentions',
-            'host', 'host-list'
+            'host', 'unhost', 'kick', 'unkick', 'host-list'
         ];
 
         const subCommands = {
@@ -708,8 +710,6 @@
             r.style.setProperty('--chat-color', theme.chat);
             r.style.setProperty('--error-color', theme.error);
             if(theme.radio) r.style.setProperty('--radio-color', theme.radio);
-            
-            state.theme = themeName; // Track current theme
             return true;
         }
 
@@ -1297,7 +1297,6 @@
                 }
             } else {
                 if (event.key === 'ArrowUp') {
-                    if (event.shiftKey) return; // Allow Shift+Up to navigate text
                     event.preventDefault();
                     if (cmdHistory.length > 0) {
                         if (historyIndex < cmdHistory.length - 1) {
@@ -1309,7 +1308,6 @@
                     return;
                 }
                 if (event.key === 'ArrowDown') {
-                    if (event.shiftKey) return; // Allow Shift+Down to navigate text
                     event.preventDefault();
                     if (historyIndex > 0) {
                         historyIndex--;
@@ -1645,7 +1643,11 @@
                     addMessage(null, '  chat [name/email] - Start chat');
                     addMessage(null, '  radio [freq]     - Join broadcast freq');
                     addMessage(null, '  host             - Claim Radio Host (*)');
-                    addMessage(null, '  host-list        - Show current Radio Host');
+                    addMessage(null, '  host [name]      - Add Admin (Host only)');
+                    addMessage(null, '  unhost [name]    - Remove Admin (Host only)');
+                    addMessage(null, '  kick [name]      - Ban User (Admin only)');
+                    addMessage(null, '  unkick [name]    - Unban User (Admin only)');
+                    addMessage(null, '  host-list        - Show Admins');
                     addMessage(null, '  ping [email]     - Check user availability');
                     addMessage(null, '  neofetch         - Display system info');
                     addMessage(null, '  burn [msg]       - Send self-destruct msg');
@@ -1662,7 +1664,50 @@
                     break;
 
                 case 'host':
-                    await claimRadioHost();
+                    if (args.length > 0) {
+                        // Promote logic: host @name or host name
+                        let target = args.join(' ');
+                        // Remove @() if present
+                        const match = target.match(/@\((.*?)\)/);
+                        if(match) target = match[1];
+                        await promoteUser(target);
+                    } else {
+                        // Claim logic
+                        await claimRadioHost();
+                    }
+                    break;
+
+                case 'unhost':
+                    if (args.length > 0) {
+                        let target = args.join(' ');
+                        const match = target.match(/@\((.*?)\)/);
+                        if(match) target = match[1];
+                        await demoteUser(target);
+                    } else {
+                        addMessage('SYSTEM', 'USAGE: unhost [username]', true);
+                    }
+                    break;
+
+                case 'kick':
+                    if (args.length > 0) {
+                        let target = args.join(' ');
+                        const match = target.match(/@\((.*?)\)/);
+                        if(match) target = match[1];
+                        await kickUser(target);
+                    } else {
+                        addMessage('SYSTEM', 'USAGE: kick [username]', true);
+                    }
+                    break;
+
+                case 'unkick':
+                    if (args.length > 0) {
+                        let target = args.join(' ');
+                        const match = target.match(/@\((.*?)\)/);
+                        if(match) target = match[1];
+                        await unkickUser(target);
+                    } else {
+                        addMessage('SYSTEM', 'USAGE: unkick [username]', true);
+                    }
                     break;
 
                 case 'host-list':
@@ -1842,6 +1887,180 @@
                 return false;
             }
             return true;
+        }
+
+        // --- Radio Helper Functions ---
+
+        async function resolveUserByNickOrEmail(identifier) {
+            // Try by email first
+            const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
+            let q = query(usersRef, where("email", "==", identifier));
+            let snapshot = await getDocs(q);
+            
+            if (!snapshot.empty) return snapshot.docs[0].data();
+
+            // Try by displayName
+            q = query(usersRef, where("displayName", "==", identifier));
+            snapshot = await getDocs(q);
+            if (!snapshot.empty) return snapshot.docs[0].data();
+
+            return null;
+        }
+
+        async function claimRadioHost() {
+            if (state.mode !== 'RADIO') {
+                addMessage('ERROR', 'YOU MUST BE TUNED INTO A RADIO CHANNEL.', false, false, true);
+                return;
+            }
+            
+            const frequency = currentChatPartner.frequency;
+            
+            try {
+                const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
+                const channelSnap = await getDoc(channelRef);
+
+                let admins = [];
+                if (channelSnap.exists()) {
+                    admins = channelSnap.data().admins || [];
+                }
+
+                if (admins.length > 0) {
+                    addMessage('ERROR', 'CHANNEL ALREADY HAS A HOST. ASK THEM TO ADD YOU.', false, false, true);
+                } else {
+                    // Claim
+                    await setDoc(channelRef, {
+                        admins: [currentUser.uid],
+                        banned: [],
+                        createdAt: serverTimestamp(),
+                        frequency: frequency
+                    }, { merge: true });
+                    addMessage('SYSTEM', 'SUCCESS. YOU ARE NOW THE SUPER ADMIN (*).', true);
+                }
+            } catch (e) {
+                addMessage('ERROR', 'CLAIM FAILED: ' + e.message, false, false, true);
+            }
+        }
+
+        async function promoteUser(targetName) {
+            if (state.mode !== 'RADIO') return;
+            if (!currentChannelAdmins.includes(currentUser.uid)) {
+                addMessage('ERROR', 'PERMISSION DENIED. ADMINS ONLY.', false, false, true);
+                return;
+            }
+
+            const targetUser = await resolveUserByNickOrEmail(targetName);
+            if (!targetUser) {
+                addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
+                return;
+            }
+
+            const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', currentChatPartner.frequency);
+            await updateDoc(channelRef, {
+                admins: arrayUnion(targetUser.uid)
+            });
+            addMessage('SYSTEM', `PROMOTED ${targetName} TO ADMIN.`, true);
+        }
+
+        async function demoteUser(targetName) {
+            if (state.mode !== 'RADIO') return;
+            if (!currentChannelAdmins.includes(currentUser.uid)) {
+                addMessage('ERROR', 'PERMISSION DENIED. ADMINS ONLY.', false, false, true);
+                return;
+            }
+
+            const targetUser = await resolveUserByNickOrEmail(targetName);
+            if (!targetUser) {
+                addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
+                return;
+            }
+
+            const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', currentChatPartner.frequency);
+            await updateDoc(channelRef, {
+                admins: arrayRemove(targetUser.uid)
+            });
+            addMessage('SYSTEM', `REMOVED ADMIN STATUS FROM ${targetName}.`, true);
+        }
+
+        async function kickUser(targetName) {
+            if (state.mode !== 'RADIO') return;
+            if (!currentChannelAdmins.includes(currentUser.uid)) {
+                addMessage('ERROR', 'PERMISSION DENIED. ADMINS ONLY.', false, false, true);
+                return;
+            }
+
+            const targetUser = await resolveUserByNickOrEmail(targetName);
+            if (!targetUser) {
+                addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
+                return;
+            }
+
+            const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', currentChatPartner.frequency);
+            await updateDoc(channelRef, {
+                banned: arrayUnion(targetUser.uid)
+            });
+            addMessage('SYSTEM', `KICKED AND BANNED ${targetName}.`, true);
+        }
+
+        async function unkickUser(targetName) {
+            if (state.mode !== 'RADIO') return;
+            if (!currentChannelAdmins.includes(currentUser.uid)) {
+                addMessage('ERROR', 'PERMISSION DENIED. ADMINS ONLY.', false, false, true);
+                return;
+            }
+
+            const targetUser = await resolveUserByNickOrEmail(targetName);
+            if (!targetUser) {
+                addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
+                return;
+            }
+
+            const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', currentChatPartner.frequency);
+            await updateDoc(channelRef, {
+                banned: arrayRemove(targetUser.uid)
+            });
+            addMessage('SYSTEM', `UNBANNED ${targetName}.`, true);
+        }
+
+        async function showRadioHost() {
+            if (state.mode !== 'RADIO') {
+                addMessage('ERROR', 'YOU MUST BE TUNED INTO A RADIO CHANNEL.', false, false, true);
+                return;
+            }
+
+            const frequency = currentChatPartner.frequency;
+            addMessage('SYSTEM', `FETCHING ADMINS FOR ${frequency}...`, true);
+
+            try {
+                const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
+                const channelSnap = await getDoc(channelRef);
+
+                if (!channelSnap.exists() || !channelSnap.data().admins || channelSnap.data().admins.length === 0) {
+                    addMessage(null, 'NO ADMINS ASSIGNED.');
+                    return;
+                }
+
+                const adminIds = channelSnap.data().admins;
+                const bannedIds = channelSnap.data().banned || [];
+                
+                addMessage(null, `--- CHANNEL ADMINS ---`);
+                for (const uid of adminIds) {
+                    const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', uid);
+                    const profileSnap = await getDoc(profileRef);
+                    let name = "Unknown ID: " + uid;
+                    if (profileSnap.exists()) {
+                        name = profileSnap.data().displayName || profileSnap.data().email;
+                    }
+                    addMessage(null, `> ${name} (*)${uid === currentUser.uid ? ' [YOU]' : ''}`);
+                }
+
+                if (bannedIds.length > 0) {
+                    addMessage(null, `--- BANNED USERS ---`);
+                    addMessage(null, `> ${bannedIds.length} user(s) banned.`);
+                }
+
+            } catch (e) {
+                addMessage('ERROR', 'LOOKUP FAILED: ' + e.message, false, false, true);
+            }
         }
 
         // --- Feature Implementation ---
@@ -2181,41 +2400,42 @@
                 currentChatPartner = { 
                     type: 'radio', 
                     frequency: frequency, 
-                    id: 'RADIO_' + frequency,
-                    hostId: null
+                    id: 'RADIO_' + frequency
                 };
                 
                 state.mode = 'RADIO';
                 history.innerHTML = ''; 
                 activeRadioParticipants.clear(); // Reset participants
+                currentChannelAdmins = []; // Reset admins
+                
                 addMessage('SYSTEM', `--- TUNED TO FREQUENCY: ${frequency} MHz ---`, true);
                 addMessage('SYSTEM', `BROADCASTING OPEN. ANYONE CAN HEAR YOU.`, true);
                 updatePrompt(currentUser.email);
 
-                // --- HOST/ADMIN LOGIC (READ ONLY) ---
-                try {
-                    const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
-                    const channelSnap = await getDoc(channelRef).catch(e => {
-                        console.warn("Could not fetch channel info:", e);
-                        return null;
-                    });
-
-                    if (channelSnap && channelSnap.exists()) {
-                        const data = channelSnap.data();
-                        currentChatPartner.hostId = data.hostId;
-                        if (data.hostId === currentUser.uid) {
-                            addMessage('SYSTEM', 'WELCOME BACK, HOST (*).', true);
-                        } else {
-                            // Fetch host name for display
-                            // Optional: We can do this in host-list command instead to save reads
+                // --- Real-time Channel Meta Listener (Admins/Bans) ---
+                if (channelMetaUnsubscribe) channelMetaUnsubscribe();
+                const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
+                
+                channelMetaUnsubscribe = onSnapshot(channelRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        currentChannelAdmins = data.admins || [];
+                        
+                        // Check if banned
+                        if (data.banned && data.banned.includes(currentUser.uid)) {
+                            // Leave channel
+                            if (messagesUnsubscribe) messagesUnsubscribe();
+                            if (channelMetaUnsubscribe) channelMetaUnsubscribe();
+                            state.mode = 'COMMAND';
+                            history.innerHTML = '';
+                            addMessage('ERROR', 'CONNECTION TERMINATED. FREQUENCY BLOCKED.', false, false, true);
+                            updatePrompt(currentUser.email.split('@')[0]);
+                            return;
                         }
                     } else {
-                        addMessage('SYSTEM', "NO HOST ASSIGNED. TYPE 'host' TO CLAIM.", true);
+                        currentChannelAdmins = [];
                     }
-                } catch (hostErr) {
-                    console.log("Host info unavailable:", hostErr.message);
-                }
-                // -----------------------
+                });
 
                 const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
                 // Query by conversation ID "RADIO_{freq}"
@@ -2253,81 +2473,6 @@
 
             } catch (error) {
                 addMessage('ERROR', 'RADIO ERROR: ' + error.message, false, false, true);
-            }
-        }
-
-        async function claimRadioHost() {
-            if (state.mode !== 'RADIO') {
-                addMessage('ERROR', 'YOU MUST BE TUNED INTO A RADIO CHANNEL.', false, false, true);
-                return;
-            }
-            
-            const frequency = currentChatPartner.frequency;
-            addMessage('SYSTEM', `ATTEMPTING TO CLAIM FREQUENCY ${frequency}...`, true);
-
-            try {
-                const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
-                const channelSnap = await getDoc(channelRef);
-
-                if (channelSnap.exists() && channelSnap.data().hostId) {
-                    const currentHostId = channelSnap.data().hostId;
-                    if (currentHostId === currentUser.uid) {
-                        addMessage('SYSTEM', 'YOU ARE ALREADY THE HOST.', true);
-                    } else {
-                        addMessage('ERROR', 'CHANNEL ALREADY HAS A HOST.', false, false, true);
-                    }
-                } else {
-                    // Claim it
-                    await setDoc(channelRef, {
-                        hostId: currentUser.uid,
-                        createdAt: serverTimestamp(),
-                        frequency: frequency
-                    }, { merge: true });
-                    
-                    currentChatPartner.hostId = currentUser.uid;
-                    addMessage('SYSTEM', 'SUCCESS. YOU ARE NOW THE HOST (*).', true);
-                }
-            } catch (e) {
-                addMessage('ERROR', 'CLAIM FAILED: ' + e.message, false, false, true);
-            }
-        }
-
-        async function showRadioHost() {
-            if (state.mode !== 'RADIO') {
-                addMessage('ERROR', 'YOU MUST BE TUNED INTO A RADIO CHANNEL.', false, false, true);
-                return;
-            }
-
-            const frequency = currentChatPartner.frequency;
-            addMessage('SYSTEM', `FETCHING HOST INFO FOR ${frequency}...`, true);
-
-            try {
-                const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
-                const channelSnap = await getDoc(channelRef);
-
-                if (!channelSnap.exists() || !channelSnap.data().hostId) {
-                    addMessage(null, 'NO HOST CURRENTLY ASSIGNED.');
-                    return;
-                }
-
-                const hostId = channelSnap.data().hostId;
-                
-                // Fetch Profile
-                const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', hostId);
-                const profileSnap = await getDoc(profileRef);
-                
-                let hostName = "UNKNOWN";
-                if (profileSnap.exists()) {
-                    hostName = profileSnap.data().displayName || profileSnap.data().email;
-                }
-
-                addMessage(null, `CURRENT HOST: ${hostName} (*)`);
-                if (hostId === currentUser.uid) {
-                    addMessage(null, `(That is you)`);
-                }
-
-            } catch (e) {
-                addMessage('ERROR', 'LOOKUP FAILED: ' + e.message, false, false, true);
             }
         }
 
@@ -2422,7 +2567,9 @@
             
             if (lowText === 'exit') {
                 if (messagesUnsubscribe) messagesUnsubscribe();
+                if (channelMetaUnsubscribe) channelMetaUnsubscribe();
                 messagesUnsubscribe = null;
+                channelMetaUnsubscribe = null;
                 state.mode = 'COMMAND';
                 currentChatPartner = null;
                 history.innerHTML = '';
@@ -2450,7 +2597,9 @@
                 addMessage('SYSTEM', 'FETCHING ASCII ART...', true);
                 const url = finalBody.substring(6).trim();
                 try {
-                    finalBody = await fetchAscii(url);
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error("Network error");
+                    finalBody = await response.text();
                     isAscii = true;
                 } catch (e) {
                     addMessage('ERROR', 'FAILED TO FETCH ASCII: ' + e.message, false, false, true);
@@ -2522,7 +2671,7 @@
                 };
 
                 // Add isHost flag if in radio mode and user is host
-                if (state.mode === 'RADIO' && currentChatPartner.hostId === currentUser.uid) {
+                if (state.mode === 'RADIO' && currentChannelAdmins.includes(currentUser.uid)) {
                     payload.isHost = true;
                 }
 
