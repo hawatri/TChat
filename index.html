@@ -1895,16 +1895,14 @@
         // --- Radio Helper Functions ---
 
         async function resolveUserByNickOrEmail(identifier) {
-            // Identifier can be "email" or "DisplayName"
-            // We need a robust search.
+            // Try by email first
             const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
-            
-            // 1. Try by email exact match
             let q = query(usersRef, where("email", "==", identifier));
             let snapshot = await getDocs(q);
+            
             if (!snapshot.empty) return snapshot.docs[0].data();
 
-            // 2. Try by displayName exact match
+            // Try by displayName
             q = query(usersRef, where("displayName", "==", identifier));
             snapshot = await getDocs(q);
             if (!snapshot.empty) return snapshot.docs[0].data();
@@ -1918,8 +1916,8 @@
              const convoId = currentChatPartner.id;
              const frequency = currentChatPartner.frequency; // Add this
              
-             // NEW: Save to 'radio_messages' collection
-             const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'radio_messages');
+             // REVERTED: Use main 'messages' collection to avoid permission errors with new collections
+             const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
              
              await addDoc(msgsRef, {
                 conversationId: convoId,
@@ -2492,8 +2490,8 @@
                     }
                 });
 
-                // NEW: Use separate collection 'radio_messages'
-                const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'radio_messages');
+                // REVERTED: Use main 'messages' collection to fix permissions
+                const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
                 
                 // CRITICAL FIX: Removed orderBy() from Firestore query to prevent index errors
                 // We will sort in JavaScript instead.
@@ -2728,13 +2726,8 @@
         }
 
         async function sendMessage(text, isAscii, isBurn) {
-            // Determine Collection
-            let msgsRef;
-            if (state.mode === 'RADIO') {
-                msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'radio_messages');
-            } else {
-                msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
-            }
+            // REVERTED: Use 'messages' collection for everything
+            const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
             
             // Determine IDs
             let convoId, receiverId;
