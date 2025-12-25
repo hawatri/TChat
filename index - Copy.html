@@ -2416,27 +2416,6 @@
                 if (channelMetaUnsubscribe) channelMetaUnsubscribe();
                 const channelRef = doc(db, 'artifacts', appId, 'public', 'data', 'radio_channels', frequency);
                 
-                // First, get the initial state of the channel
-                const channelSnap = await getDoc(channelRef);
-                if (channelSnap.exists()) {
-                    const data = channelSnap.data();
-                    currentChannelAdmins = data.admins || [];
-                    
-                    // Check if banned
-                    if (data.banned && data.banned.includes(currentUser.uid)) {
-                        // Leave channel
-                        if (messagesUnsubscribe) messagesUnsubscribe();
-                        if (channelMetaUnsubscribe) channelMetaUnsubscribe();
-                        state.mode = 'COMMAND';
-                        history.innerHTML = '';
-                        addMessage('ERROR', 'CONNECTION TERMINATED. FREQUENCY BLOCKED.', false, false, true);
-                        updatePrompt(currentUser.email.split('@')[0]);
-                        return;
-                    }
-                } else {
-                    currentChannelAdmins = [];
-                }
-                
                 channelMetaUnsubscribe = onSnapshot(channelRef, (docSnap) => {
                     if (docSnap.exists()) {
                         const data = docSnap.data();
