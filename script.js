@@ -103,7 +103,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
             '(gun)': '︻╦╤─', '(mg)': '︻╦╤─', '(hadouken)': '༼つಠ益ಠ༽つ ─=≡ΣO))', '(hammerandsickle)': '☭',
             '(hs)': '☭', '(handleft)': '☜', '(hl)': '☜', '(handright)': '☞', '(hr)': '☞', '(haha)': '٩(^‿^)۶',
             '(happy)': '٩( ๑╹ ꇴ╹)۶', '(happygarry)': 'ᕕ( ᐛ )ᕗ', '(h)': '♥', '(heart)': '♥', '(hello)': '(ʘ‿ʘ)╯',
-            '(ohai)': '(ʘ‿ʘ)╯', '(bye)': '(ʘ‿ʘ)╯', '(help)': '\\(°Ω°)/', '(highfive)': '._.)/\\(._.',
+            '(ohai)': '(ʘ‿ʘ)╯', '(bye)': '(ʘ‿ʘ)╯', '(help)': '\\(°Ω°)/','(hi)' : '(°▽°)/', '(highfive)': '._.)/\\(._.',
             '(hitting)': '( ｀皿´)｡ﾐ/', '(hug)': '(づ｡◕‿‿◕｡)づ', '(hugs)': '(づ｡◕‿‿◕｡)づ',
             '(iknowright)': '┐｜･ิω･ิ#｜┌', '(ikr)': '┐｜･ิω･ิ#｜┌', '(illuminati)': '୧(▲ᴗ▲)ノ', '(infinity)': '∞',
             '(inf)': '∞', '(inlove)': '(っ´ω`c)♡', '(int)': '∫', '(internet)': 'ଘ(੭*ˊᵕˋ)੭* ̀ˋ ɪɴᴛᴇʀɴᴇᴛ',
