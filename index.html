@@ -1228,6 +1228,11 @@
                 const text = input.value; 
                 const trimmed = text.trim();
                 
+                // Allow Shift+Enter to insert a newline
+                if (event.shiftKey) {
+                    return;
+                }
+
                 if (trimmed !== "") {
                     cmdHistory.push(trimmed);
                     historyIndex = -1;
