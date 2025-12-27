@@ -1084,7 +1084,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
                 addMessage('SYSTEM', 'POST PUBLISHED SUCCESSFULLY.', true);
                 closeAllWindows();
             } catch (error) {
-                addMessage('ERROR', 'FAILED TO PUBLISH POST: ' + error.message, false, false, true);
+                if (error.message.includes('permission') || error.message.includes('Permission')) {
+                    addMessage('ERROR', 'PERMISSION DENIED. Check Firestore security rules for "posts" collection. See FIRESTORE_RULES.md', false, false, true);
+                } else {
+                    addMessage('ERROR', 'FAILED TO PUBLISH POST: ' + error.message, false, false, true);
+                }
             }
         }
 
@@ -1315,6 +1319,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
         // --- Profile Viewer Logic ---
         async function openProfileViewer(email) {
             if (!ensureAuth()) return;
+            
+            if (!currentUser || !currentUser.uid) {
+                addMessage('ERROR', 'NOT AUTHENTICATED. PLEASE LOGIN.', false, false, true);
+                return;
+            }
             
             state.mode = 'TUI_PROFILE';
             state.activeWindow = 'profile-viewer-window';
@@ -2280,6 +2289,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
         }
 
         async function sendMessage(text, isAscii, isBurn) {
+            if (!currentUser || !currentUser.uid) {
+                addMessage('ERROR', 'NOT AUTHENTICATED. PLEASE LOGIN.', false, false, true);
+                return;
+            }
+            
             const msgsRef = collection(db, 'artifacts', appId, 'public', 'data', 'messages');
             
             // Determine IDs
@@ -2288,6 +2302,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
                 convoId = currentChatPartner.id; // e.g., 'RADIO_101.5'
                 receiverId = 'ALL';
             } else {
+                if (!currentChatPartner || !currentChatPartner.uid) {
+                    addMessage('ERROR', 'NO CHAT PARTNER SELECTED.', false, false, true);
+                    return;
+                }
                 convoId = getConversationId(currentUser.uid, currentChatPartner.uid);
                 receiverId = currentChatPartner.uid;
             }
