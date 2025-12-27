@@ -63,6 +63,31 @@
                 [TAB/ARROW] NAVIGATE | [SPACE/TAP] EDIT
             </div>
         </div>
+        
+        <!-- Post Writer Window -->
+        <div id="post-writer-window" class="tui-window tui-fullscreen">
+            <div class="editor-header">:: T-OS POST WRITER ::</div>
+            
+            <div class="post-field">
+                <label class="post-label">TITLE:</label>
+                <input type="text" id="post-title" class="post-input" placeholder="Enter post title...">
+            </div>
+            
+            <div class="post-field">
+                <label class="post-label">ASCII ART:</label>
+                <div id="post-ascii-preview" class="post-ascii-preview">[ CLICK TO UPLOAD IMAGE ]</div>
+            </div>
+            
+            <div class="post-field">
+                <label class="post-label">BODY:</label>
+                <textarea id="post-body" class="post-textarea" placeholder="Enter post body (max 1000 characters)..." maxlength="1000"></textarea>
+                <div class="post-char-count"><span id="post-char-count">0</span>/1000</div>
+            </div>
+            
+            <div style="text-align: center; font-size: 0.8rem; margin-top: 10px; color: var(--system-color);">
+                [TAB] Next Field | [ESC] Cancel | [CTRL+ENTER] Publish
+            </div>
+        </div>
     </div>
 <!--  <script src="utils.js" type="module"></script>
     <script src="firebase-config.js" type="module"></script>   

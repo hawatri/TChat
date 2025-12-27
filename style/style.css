@@ -339,6 +339,81 @@
             max-height: none;
         }
 
+        /* --- Post Writer Styles --- */
+        .post-field {
+            margin: 15px 10px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .post-label {
+            color: var(--terminal-main);
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 1.2rem;
+        }
+
+        .post-input {
+            background-color: var(--terminal-bg);
+            border: 1px solid var(--terminal-main);
+            color: var(--terminal-main);
+            font-family: 'VT323', monospace;
+            font-size: 1.3rem;
+            padding: 8px;
+            outline: none;
+            text-shadow: 0 0 4px var(--terminal-glow);
+        }
+
+        .post-input:focus {
+            box-shadow: 0 0 10px rgba(51, 255, 0, 0.5);
+        }
+
+        .post-textarea {
+            background-color: var(--terminal-bg);
+            border: 1px solid var(--terminal-main);
+            color: var(--terminal-main);
+            font-family: 'VT323', monospace;
+            font-size: 1.2rem;
+            padding: 8px;
+            outline: none;
+            resize: vertical;
+            min-height: 200px;
+            text-shadow: 0 0 4px var(--terminal-glow);
+        }
+
+        .post-textarea:focus {
+            box-shadow: 0 0 10px rgba(51, 255, 0, 0.5);
+        }
+
+        .post-ascii-preview {
+            background-color: var(--terminal-bg);
+            border: 1px dashed var(--terminal-main);
+            color: var(--terminal-main);
+            font-family: monospace;
+            font-size: 0.6rem;
+            padding: 10px;
+            min-height: 100px;
+            max-height: 300px;
+            overflow-y: auto;
+            cursor: pointer;
+            white-space: pre;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .post-ascii-preview:hover {
+            background-color: rgba(51, 255, 0, 0.1);
+        }
+
+        .post-char-count {
+            text-align: right;
+            font-size: 0.9rem;
+            color: var(--system-color);
+            margin-top: 5px;
+        }
+
         /* --- Profile Editor Overlay (backward compatibility) --- */
         #profile-editor-overlay {
             position: absolute;

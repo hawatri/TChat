@@ -271,10 +271,32 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
             }
         });
 
+        // --- Post Writer State ---
+        let currentPostAscii = null;
+
         // --- File Upload Handler ---
         fileInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
+            
+            // IF IN POST WRITER MODE
+            if (state.mode === 'TUI_POST_WRITE') {
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    try {
+                        const ascii = await convertImageToAscii(event.target.result);
+                        currentPostAscii = ascii;
+                        const previewDiv = document.getElementById('post-ascii-preview');
+                        previewDiv.textContent = ascii;
+                        previewDiv.classList.add('ascii-art');
+                    } catch(e) {
+                        document.getElementById('post-ascii-preview').textContent = "[ ERROR CONVERTING ]";
+                    }
+                    fileInput.value = '';
+                };
+                reader.readAsDataURL(file);
+                return;
+            }
             
             // IF IN EDITOR MODE
             if (state.mode === 'PROFILE_EDIT') {
@@ -918,6 +940,97 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
             input.focus();
         }
 
+        // --- Post Writer Logic ---
+        function openPostWriter() {
+            if (!ensureAuth()) return;
+            state.mode = 'TUI_POST_WRITE';
+            state.activeWindow = 'post-writer-window';
+            
+            const postWindow = document.getElementById('post-writer-window');
+            postWindow.style.display = 'flex';
+            
+            // Reset fields
+            document.getElementById('post-title').value = '';
+            document.getElementById('post-body').value = '';
+            const previewDiv = document.getElementById('post-ascii-preview');
+            previewDiv.textContent = '[ CLICK TO UPLOAD IMAGE ]';
+            previewDiv.classList.remove('ascii-art');
+            currentPostAscii = null;
+            document.getElementById('post-char-count').textContent = '0';
+            
+            // Focus title input
+            document.getElementById('post-title').focus();
+            
+            // Setup ASCII preview click handler
+            previewDiv.onclick = () => {
+                if (state.mode === 'TUI_POST_WRITE') {
+                    fileInput.click();
+                }
+            };
+            
+            // Setup character counter
+            const bodyTextarea = document.getElementById('post-body');
+            bodyTextarea.addEventListener('input', () => {
+                document.getElementById('post-char-count').textContent = bodyTextarea.value.length;
+            });
+            
+            // Setup keyboard handlers
+            const titleInput = document.getElementById('post-title');
+            titleInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    bodyTextarea.focus();
+                }
+            });
+            
+            bodyTextarea.addEventListener('keydown', (e) => {
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    titleInput.focus();
+                } else if (e.key === 'Enter' && e.ctrlKey) {
+                    e.preventDefault();
+                    publishPost();
+                }
+            });
+        }
+
+        async function publishPost() {
+            if (!ensureAuth()) return;
+            
+            const title = document.getElementById('post-title').value.trim();
+            const body = document.getElementById('post-body').value.trim();
+            
+            if (!title) {
+                addMessage('ERROR', 'TITLE IS REQUIRED.', false, false, true);
+                return;
+            }
+            
+            if (!body) {
+                addMessage('ERROR', 'BODY IS REQUIRED.', false, false, true);
+                return;
+            }
+            
+            try {
+                const postsRef = collection(db, 'artifacts', appId, 'public', 'data', 'posts');
+                const postData = {
+                    authorId: currentUser.uid,
+                    authorName: currentUser.displayName || currentUser.email.split('@')[0],
+                    title: title,
+                    body: body,
+                    asciiArt: currentPostAscii || null,
+                    timestamp: serverTimestamp(),
+                    likes: 0
+                };
+                
+                await addDoc(postsRef, postData);
+                
+                addMessage('SYSTEM', 'POST PUBLISHED SUCCESSFULLY.', true);
+                closeAllWindows();
+            } catch (error) {
+                addMessage('ERROR', 'FAILED TO PUBLISH POST: ' + error.message, false, false, true);
+            }
+        }
+
         async function saveProfileEditor() {
             addMessage('SYSTEM', 'SAVING PROFILE...', true);
             const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', currentUser.uid);
@@ -1178,6 +1291,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
                     addMessage(null, '  emoji            - List emoji codes');
                     addMessage(null, '  mute / unmute    - Toggle sounds');
                     addMessage(null, '  clear            - Clear screen');
+                    addMessage(null, '  post             - Write a new post');
                     break;
 
                 case 'clear':
@@ -1186,6 +1300,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
                 case 'set-bio':
                     openProfileEditor();
+                    break;
+
+                case 'post':
+                    if (!ensureAuth()) return;
+                    openPostWriter();
                     break;
 
                 case 'whois':
