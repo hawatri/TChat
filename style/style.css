@@ -414,6 +414,116 @@
             margin-top: 5px;
         }
 
+        /* --- Profile Viewer Styles --- */
+        .profile-viewer-header {
+            display: flex;
+            padding: 15px;
+            border-bottom: 1px solid var(--terminal-main);
+            gap: 20px;
+        }
+
+        .profile-viewer-left {
+            flex-shrink: 0;
+        }
+
+        .profile-viewer-avatar {
+            width: 150px;
+            min-height: 150px;
+            background-color: var(--terminal-bg);
+            border: 1px solid var(--terminal-main);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.5rem;
+            line-height: 0.6rem;
+            white-space: pre;
+            overflow: hidden;
+            font-family: monospace;
+        }
+
+        .profile-viewer-right {
+            flex: 1;
+        }
+
+        .profile-viewer-info {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .profile-viewer-field {
+            display: flex;
+            gap: 10px;
+        }
+
+        .profile-viewer-label {
+            font-weight: bold;
+            color: var(--terminal-main);
+            min-width: 100px;
+        }
+
+        .profile-viewer-value {
+            color: var(--terminal-main);
+            word-break: break-word;
+        }
+
+        .profile-viewer-bio {
+            color: var(--terminal-main);
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .profile-viewer-posts-header {
+            padding: 10px 15px;
+            background-color: rgba(51, 255, 0, 0.1);
+            border-bottom: 1px solid var(--terminal-main);
+            font-weight: bold;
+            color: var(--terminal-main);
+        }
+
+        .profile-post-list {
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 5px;
+        }
+
+        .profile-post-item {
+            padding: 10px 15px;
+            border-bottom: 1px dotted rgba(51, 255, 0, 0.3);
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .profile-post-item:hover {
+            background-color: rgba(51, 255, 0, 0.1);
+        }
+
+        .profile-post-item.selected {
+            background-color: var(--terminal-main);
+            color: var(--terminal-bg);
+        }
+
+        .profile-post-item-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .profile-post-item-preview {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .profile-post-item-meta {
+            font-size: 0.8rem;
+            margin-top: 5px;
+            opacity: 0.7;
+        }
+
         /* --- Profile Editor Overlay (backward compatibility) --- */
         #profile-editor-overlay {
             position: absolute;

@@ -794,6 +794,48 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
                 }
             }
             
+            // Handle Profile Viewer navigation
+            if (state.mode === 'TUI_PROFILE') {
+                const postList = document.getElementById('profile-post-list');
+                const postItems = postList.querySelectorAll('.profile-post-item[data-post-id]');
+                
+                if (postItems.length === 0) return;
+                
+                if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    state.menuIndex = (state.menuIndex + 1) % postItems.length;
+                    postItems.forEach((item, index) => {
+                        item.classList.toggle('selected', index === state.menuIndex);
+                    });
+                    // Scroll into view
+                    postItems[state.menuIndex].scrollIntoView({ block: 'nearest' });
+                    return;
+                }
+                
+                if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    state.menuIndex = (state.menuIndex - 1 + postItems.length) % postItems.length;
+                    postItems.forEach((item, index) => {
+                        item.classList.toggle('selected', index === state.menuIndex);
+                    });
+                    // Scroll into view
+                    postItems[state.menuIndex].scrollIntoView({ block: 'nearest' });
+                    return;
+                }
+                
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    const selectedItem = postItems[state.menuIndex];
+                    if (selectedItem && selectedItem.getAttribute('data-post-id')) {
+                        const postId = selectedItem.getAttribute('data-post-id');
+                        // openPostReader will be implemented in next step
+                        // For now, just show a message
+                        addMessage('SYSTEM', `POST READER COMING SOON: ${postId}`, true);
+                    }
+                    return;
+                }
+            }
+            
             if (state.mode === 'PROFILE_EDIT') {
                 handleProfileEditorKey(event);
                 return;
@@ -1015,6 +1057,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
                 const postData = {
                     authorId: currentUser.uid,
                     authorName: currentUser.displayName || currentUser.email.split('@')[0],
+                    authorEmail: currentUser.email,
                     title: title,
                     body: body,
                     asciiArt: currentPostAscii || null,
@@ -1292,6 +1335,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
                     addMessage(null, '  mute / unmute    - Toggle sounds');
                     addMessage(null, '  clear            - Clear screen');
                     addMessage(null, '  post             - Write a new post');
+                    addMessage(null, '  profile          - View your profile');
                     break;
 
                 case 'clear':
@@ -1308,11 +1352,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
                     break;
 
                 case 'whois':
+                    if (!ensureAuth()) return;
                     if (args[0]) {
-                        await runWhois(args[0]);
+                        openProfileViewer(args[0]);
                     } else {
-                        // If no arg, show self
-                        await runWhois(currentUser.email);
+                        addMessage('SYSTEM', 'USAGE: whois [email]', true);
+                    }
+                    break;
+
+                case 'profile':
+                    if (!ensureAuth()) return;
+                    if (currentUser && currentUser.email) {
+                        openProfileViewer(currentUser.email);
+                    } else {
+                        addMessage('ERROR', 'NOT LOGGED IN.', false, false, true);
                     }
                     break;
 

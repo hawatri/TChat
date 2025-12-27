@@ -88,6 +88,42 @@
                 [TAB] Next Field | [ESC] Cancel | [CTRL+ENTER] Publish
             </div>
         </div>
+        
+        <!-- Profile Viewer Window -->
+        <div id="profile-viewer-window" class="tui-window">
+            <div class="editor-header">:: T-OS PROFILE VIEWER ::</div>
+            
+            <!-- Header Section -->
+            <div id="profile-viewer-header" class="profile-viewer-header">
+                <div class="profile-viewer-left">
+                    <div id="profile-viewer-avatar" class="profile-viewer-avatar"></div>
+                </div>
+                <div class="profile-viewer-right">
+                    <div class="profile-viewer-info">
+                        <div class="profile-viewer-field">
+                            <span class="profile-viewer-label">NICKNAME:</span>
+                            <span id="profile-viewer-nickname" class="profile-viewer-value"></span>
+                        </div>
+                        <div class="profile-viewer-field">
+                            <span class="profile-viewer-label">EMAIL:</span>
+                            <span id="profile-viewer-email" class="profile-viewer-value"></span>
+                        </div>
+                        <div class="profile-viewer-field">
+                            <span class="profile-viewer-label">BIO:</span>
+                            <div id="profile-viewer-bio" class="profile-viewer-bio"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Posts List Section -->
+            <div class="profile-viewer-posts-header">POSTS:</div>
+            <div id="profile-post-list" class="profile-post-list"></div>
+            
+            <div style="text-align: center; font-size: 0.8rem; margin-top: 10px; color: var(--system-color);">
+                [ARROW UP/DOWN] Navigate | [ENTER] View Post | [ESC] Close
+            </div>
+        </div>
     </div>
 <!--  <script src="utils.js" type="module"></script>
     <script src="firebase-config.js" type="module"></script>   
