@@ -124,6 +124,30 @@
                 [ARROW UP/DOWN] Navigate | [ENTER] View Post | [ESC] Close
             </div>
         </div>
+        
+        <!-- Post Reader Window -->
+        <div id="post-reader-window" class="tui-window tui-fullscreen">
+            <div class="editor-header">:: T-OS POST READER ::</div>
+            
+            <!-- Header Section -->
+            <div class="post-reader-header">
+                <div class="post-reader-title" id="post-reader-title"></div>
+                <div class="post-reader-meta">
+                    <span id="post-reader-author"></span>
+                    <span id="post-reader-date"></span>
+                </div>
+            </div>
+            
+            <!-- Content Section -->
+            <div class="post-reader-content" id="post-reader-content">
+                <!-- ASCII Art and Body will be inserted here -->
+            </div>
+            
+            <!-- Footer -->
+            <div style="text-align: center; font-size: 0.8rem; margin-top: 10px; color: var(--system-color);">
+                [ESC] Close | [L] Like
+            </div>
+        </div>
     </div>
 <!--  <script src="utils.js" type="module"></script>
     <script src="firebase-config.js" type="module"></script>   

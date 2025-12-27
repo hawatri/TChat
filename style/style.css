@@ -524,6 +524,63 @@
             opacity: 0.7;
         }
 
+        /* --- Post Reader Styles --- */
+        .post-reader-header {
+            padding: 15px;
+            border-bottom: 1px solid var(--terminal-main);
+            margin-bottom: 15px;
+        }
+
+        .post-reader-title {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--terminal-main);
+            text-shadow: 0 0 4px var(--terminal-glow);
+            margin-bottom: 10px;
+            word-wrap: break-word;
+        }
+
+        .post-reader-meta {
+            display: flex;
+            gap: 20px;
+            font-size: 1.1rem;
+            color: var(--system-color);
+        }
+
+        .post-reader-meta span {
+            text-shadow: 0 0 4px var(--system-color);
+        }
+
+        .post-reader-content {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            color: var(--terminal-main);
+            text-shadow: 0 0 4px var(--terminal-glow);
+            font-size: 1.2rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .post-reader-content .post-reader-ascii {
+            font-family: monospace;
+            font-size: 0.6rem;
+            line-height: 0.6rem;
+            white-space: pre;
+            margin: 20px 0;
+            padding: 10px;
+            background-color: rgba(51, 255, 0, 0.05);
+            border: 1px dashed var(--terminal-main);
+            overflow-x: auto;
+        }
+
+        .post-reader-content .post-reader-body {
+            margin-top: 20px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
         /* --- Profile Editor Overlay (backward compatibility) --- */
         #profile-editor-overlay {
             position: absolute;

@@ -786,12 +786,28 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
         document.addEventListener('keydown', (event) => {
             // Handle Escape key to close all windows
             if (event.key === 'Escape') {
-                const tuiModes = ['PROFILE_EDIT', 'TUI_PROFILE', 'TUI_POST_WRITE', 'TUI_POST_READ', 'TUI_FEED'];
+                if (state.mode === 'TUI_POST_READ') {
+                    event.preventDefault();
+                    // Close post reader and return to profile viewer
+                    document.getElementById('post-reader-window').style.display = 'none';
+                    state.mode = 'TUI_PROFILE';
+                    document.getElementById('profile-viewer-window').style.display = 'flex';
+                    return;
+                }
+                const tuiModes = ['PROFILE_EDIT', 'TUI_PROFILE', 'TUI_POST_WRITE', 'TUI_FEED'];
                 if (tuiModes.includes(state.mode)) {
                     event.preventDefault();
                     closeAllWindows();
                     return;
                 }
+            }
+            
+            // Handle Like key in post reader
+            if (state.mode === 'TUI_POST_READ' && (event.key === 'l' || event.key === 'L')) {
+                event.preventDefault();
+                // TODO: Implement like functionality
+                addMessage('SYSTEM', 'LIKE FUNCTIONALITY COMING SOON', true);
+                return;
             }
             
             // Handle Profile Viewer navigation
@@ -828,9 +844,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
                     const selectedItem = postItems[state.menuIndex];
                     if (selectedItem && selectedItem.getAttribute('data-post-id')) {
                         const postId = selectedItem.getAttribute('data-post-id');
-                        // openPostReader will be implemented in next step
-                        // For now, just show a message
-                        addMessage('SYSTEM', `POST READER COMING SOON: ${postId}`, true);
+                        openPostReader(postId);
                     }
                     return;
                 }
@@ -1680,6 +1694,186 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
             } catch(e) {
                  addMessage('ERROR', 'WHOIS FAILED: ' + e.message, false, false, true);
+            }
+        }
+
+        // --- Profile Viewer Logic ---
+        async function openProfileViewer(email) {
+            if (!ensureAuth()) return;
+            
+            state.mode = 'TUI_PROFILE';
+            state.activeWindow = 'profile-viewer-window';
+            state.menuIndex = 0;
+            
+            const profileWindow = document.getElementById('profile-viewer-window');
+            profileWindow.style.display = 'flex';
+            
+            // Clear previous content
+            document.getElementById('profile-viewer-nickname').textContent = '';
+            document.getElementById('profile-viewer-email').textContent = '';
+            document.getElementById('profile-viewer-bio').textContent = '';
+            document.getElementById('profile-viewer-avatar').textContent = '';
+            document.getElementById('profile-viewer-avatar').classList.remove('ascii-art');
+            document.getElementById('profile-post-list').innerHTML = '';
+            
+            try {
+                // Fetch user profile
+                const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
+                const q = query(usersRef, where("email", "==", email));
+                const snapshot = await getDocs(q);
+                
+                if (snapshot.empty) {
+                    addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
+                    closeAllWindows();
+                    return;
+                }
+                
+                const userData = snapshot.docs[0].data();
+                
+                // Populate header
+                document.getElementById('profile-viewer-nickname').textContent = userData.displayName || email.split('@')[0];
+                document.getElementById('profile-viewer-email').textContent = email;
+                document.getElementById('profile-viewer-bio').textContent = userData.bio || '[ NO BIO ]';
+                
+                if (userData.avatarAscii) {
+                    const avatarDiv = document.getElementById('profile-viewer-avatar');
+                    avatarDiv.textContent = userData.avatarAscii;
+                    avatarDiv.classList.add('ascii-art');
+                } else {
+                    document.getElementById('profile-viewer-avatar').textContent = '[ NO AVATAR ]';
+                }
+                
+                // Fetch posts
+                const postsRef = collection(db, 'artifacts', appId, 'public', 'data', 'posts');
+                const postsQuery = query(
+                    postsRef,
+                    where('authorEmail', '==', email),
+                    orderBy('timestamp', 'desc'),
+                    limit(20)
+                );
+                
+                const postsSnapshot = await getDocs(postsQuery);
+                const postList = document.getElementById('profile-post-list');
+                
+                if (postsSnapshot.empty) {
+                    const noPostsDiv = document.createElement('div');
+                    noPostsDiv.className = 'profile-post-item';
+                    noPostsDiv.textContent = '[ NO POSTS YET ]';
+                    noPostsDiv.style.textAlign = 'center';
+                    noPostsDiv.style.opacity = '0.5';
+                    postList.appendChild(noPostsDiv);
+                } else {
+                    postsSnapshot.forEach((docSnap) => {
+                        const postData = docSnap.data();
+                        const postItem = document.createElement('div');
+                        postItem.className = 'profile-post-item';
+                        postItem.setAttribute('data-post-id', docSnap.id);
+                        
+                        const titleDiv = document.createElement('div');
+                        titleDiv.className = 'profile-post-item-title';
+                        titleDiv.textContent = postData.title || '[ NO TITLE ]';
+                        
+                        const previewDiv = document.createElement('div');
+                        previewDiv.className = 'profile-post-item-preview';
+                        const bodyPreview = postData.body ? postData.body.substring(0, 80) : '';
+                        previewDiv.textContent = bodyPreview + (bodyPreview.length >= 80 ? '...' : '');
+                        
+                        const metaDiv = document.createElement('div');
+                        metaDiv.className = 'profile-post-item-meta';
+                        const timestamp = postData.timestamp ? new Date(postData.timestamp.seconds * 1000).toLocaleString() : 'Unknown';
+                        metaDiv.textContent = `Likes: ${postData.likes || 0} | ${timestamp}`;
+                        
+                        postItem.appendChild(titleDiv);
+                        postItem.appendChild(previewDiv);
+                        postItem.appendChild(metaDiv);
+                        postList.appendChild(postItem);
+                    });
+                    
+                    // Set first item as selected
+                    const firstItem = postList.querySelector('.profile-post-item[data-post-id]');
+                    if (firstItem) {
+                        firstItem.classList.add('selected');
+                    }
+                }
+            } catch (error) {
+                addMessage('ERROR', 'FAILED TO LOAD PROFILE: ' + error.message, false, false, true);
+                closeAllWindows();
+            }
+        }
+
+        // --- Post Reader Logic ---
+        async function openPostReader(postId) {
+            if (!ensureAuth()) return;
+            
+            state.mode = 'TUI_POST_READ';
+            state.activeWindow = 'post-reader-window';
+            
+            const postReaderWindow = document.getElementById('post-reader-window');
+            postReaderWindow.style.display = 'flex';
+            
+            // Hide profile viewer
+            document.getElementById('profile-viewer-window').style.display = 'none';
+            
+            // Clear previous content
+            document.getElementById('post-reader-title').textContent = '';
+            document.getElementById('post-reader-author').textContent = '';
+            document.getElementById('post-reader-date').textContent = '';
+            document.getElementById('post-reader-content').innerHTML = '';
+            
+            try {
+                // Fetch post data
+                const postRef = doc(db, 'artifacts', appId, 'public', 'data', 'posts', postId);
+                const postSnap = await getDoc(postRef);
+                
+                if (!postSnap.exists()) {
+                    addMessage('ERROR', 'POST NOT FOUND.', false, false, true);
+                    // Return to profile viewer
+                    postReaderWindow.style.display = 'none';
+                    state.mode = 'TUI_PROFILE';
+                    document.getElementById('profile-viewer-window').style.display = 'flex';
+                    return;
+                }
+                
+                const postData = postSnap.data();
+                
+                // Populate header
+                document.getElementById('post-reader-title').textContent = postData.title || '[ NO TITLE ]';
+                document.getElementById('post-reader-author').textContent = `AUTHOR: ${postData.authorName || postData.authorEmail || 'Unknown'}`;
+                
+                const timestamp = postData.timestamp ? new Date(postData.timestamp.seconds * 1000).toLocaleString() : 'Unknown';
+                document.getElementById('post-reader-date').textContent = `DATE: ${timestamp}`;
+                
+                // Populate content
+                const contentDiv = document.getElementById('post-reader-content');
+                
+                // Add ASCII art if present
+                if (postData.asciiArt) {
+                    const asciiDiv = document.createElement('div');
+                    asciiDiv.className = 'post-reader-ascii ascii-art';
+                    asciiDiv.textContent = postData.asciiArt;
+                    contentDiv.appendChild(asciiDiv);
+                }
+                
+                // Add body text
+                if (postData.body) {
+                    const bodyDiv = document.createElement('div');
+                    bodyDiv.className = 'post-reader-body';
+                    bodyDiv.textContent = postData.body;
+                    contentDiv.appendChild(bodyDiv);
+                } else {
+                    const noBodyDiv = document.createElement('div');
+                    noBodyDiv.className = 'post-reader-body';
+                    noBodyDiv.textContent = '[ NO CONTENT ]';
+                    noBodyDiv.style.opacity = '0.5';
+                    contentDiv.appendChild(noBodyDiv);
+                }
+                
+            } catch (error) {
+                addMessage('ERROR', 'FAILED TO LOAD POST: ' + error.message, false, false, true);
+                // Return to profile viewer
+                postReaderWindow.style.display = 'none';
+                state.mode = 'TUI_PROFILE';
+                document.getElementById('profile-viewer-window').style.display = 'flex';
             }
         }
 
