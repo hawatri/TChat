@@ -315,7 +315,31 @@
             color: var(--terminal-bg);
         }
 
-        /* --- Profile Editor Overlay --- */
+        /* --- TUI Window System --- */
+        .tui-window {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 600px;
+            background-color: var(--terminal-bg);
+            border: 2px solid var(--terminal-main);
+            z-index: 50;
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            padding: 2px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.9);
+        }
+
+        .tui-fullscreen {
+            width: 95%;
+            height: 95%;
+            max-width: none;
+            max-height: none;
+        }
+
+        /* --- Profile Editor Overlay (backward compatibility) --- */
         #profile-editor-overlay {
             position: absolute;
             top: 50%;

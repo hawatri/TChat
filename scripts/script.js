@@ -32,10 +32,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
         let currentChannelAdmins = []; // Array of Admin UIDs for current radio
 
         const state = {
-            mode: 'COMMAND', // COMMAND, CHAT, RADIO, PROFILE_EDIT
+            mode: 'COMMAND', // COMMAND, CHAT, RADIO, PROFILE_EDIT, TUI_PROFILE, TUI_POST_WRITE, TUI_POST_READ, TUI_FEED
             muted: false,
             booting: true, 
-            theme: 'green'
+            theme: 'green',
+            activeWindow: null, // string ID of the open window
+            menuIndex: 0 // integer for navigating lists
         };
         
         // --- Command History ---
@@ -744,8 +746,32 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
         // --- Command Processing ---
         
-        // --- Intercept Keys for Profile Editor ---
+        // --- Generic Window Management ---
+        function closeAllWindows() {
+            // Hide all TUI windows
+            const windows = document.querySelectorAll('.tui-window');
+            windows.forEach(window => {
+                window.style.display = 'none';
+            });
+            
+            // Reset state
+            state.mode = 'COMMAND';
+            state.activeWindow = null;
+            state.menuIndex = 0;
+        }
+
+        // --- Intercept Keys for Profile Editor and Windows ---
         document.addEventListener('keydown', (event) => {
+            // Handle Escape key to close all windows
+            if (event.key === 'Escape') {
+                const tuiModes = ['PROFILE_EDIT', 'TUI_PROFILE', 'TUI_POST_WRITE', 'TUI_POST_READ', 'TUI_FEED'];
+                if (tuiModes.includes(state.mode)) {
+                    event.preventDefault();
+                    closeAllWindows();
+                    return;
+                }
+            }
+            
             if (state.mode === 'PROFILE_EDIT') {
                 handleProfileEditorKey(event);
                 return;
