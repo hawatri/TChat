@@ -1312,6 +1312,110 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
             });
         }
 
+        // --- Profile Viewer Logic ---
+        async function openProfileViewer(email) {
+            if (!ensureAuth()) return;
+            
+            state.mode = 'TUI_PROFILE';
+            state.activeWindow = 'profile-viewer-window';
+            state.menuIndex = 0;
+            
+            const profileWindow = document.getElementById('profile-viewer-window');
+            profileWindow.style.display = 'flex';
+            
+            // Clear previous content
+            document.getElementById('profile-viewer-nickname').textContent = '';
+            document.getElementById('profile-viewer-email').textContent = '';
+            document.getElementById('profile-viewer-bio').textContent = '';
+            document.getElementById('profile-viewer-avatar').textContent = '';
+            document.getElementById('profile-viewer-avatar').classList.remove('ascii-art');
+            document.getElementById('profile-post-list').innerHTML = '';
+            
+            try {
+                // Fetch user profile
+                const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
+                const q = query(usersRef, where("email", "==", email));
+                const snapshot = await getDocs(q);
+                
+                if (snapshot.empty) {
+                    addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
+                    closeAllWindows();
+                    return;
+                }
+                
+                const userData = snapshot.docs[0].data();
+                
+                // Populate header
+                document.getElementById('profile-viewer-nickname').textContent = userData.displayName || email.split('@')[0];
+                document.getElementById('profile-viewer-email').textContent = email;
+                document.getElementById('profile-viewer-bio').textContent = userData.bio || '[ NO BIO ]';
+                
+                if (userData.avatarAscii) {
+                    const avatarDiv = document.getElementById('profile-viewer-avatar');
+                    avatarDiv.textContent = userData.avatarAscii;
+                    avatarDiv.classList.add('ascii-art');
+                } else {
+                    document.getElementById('profile-viewer-avatar').textContent = '[ NO AVATAR ]';
+                }
+                
+                // Fetch posts
+                const postsRef = collection(db, 'artifacts', appId, 'public', 'data', 'posts');
+                const postsQuery = query(
+                    postsRef,
+                    where('authorEmail', '==', email),
+                    orderBy('timestamp', 'desc'),
+                    limit(20)
+                );
+                
+                const postsSnapshot = await getDocs(postsQuery);
+                const postList = document.getElementById('profile-post-list');
+                
+                if (postsSnapshot.empty) {
+                    const noPostsDiv = document.createElement('div');
+                    noPostsDiv.className = 'profile-post-item';
+                    noPostsDiv.textContent = '[ NO POSTS YET ]';
+                    noPostsDiv.style.textAlign = 'center';
+                    noPostsDiv.style.opacity = '0.5';
+                    postList.appendChild(noPostsDiv);
+                } else {
+                    postsSnapshot.forEach((docSnap) => {
+                        const postData = docSnap.data();
+                        const postItem = document.createElement('div');
+                        postItem.className = 'profile-post-item';
+                        postItem.setAttribute('data-post-id', docSnap.id);
+                        
+                        const titleDiv = document.createElement('div');
+                        titleDiv.className = 'profile-post-item-title';
+                        titleDiv.textContent = postData.title || '[ NO TITLE ]';
+                        
+                        const previewDiv = document.createElement('div');
+                        previewDiv.className = 'profile-post-item-preview';
+                        const bodyPreview = postData.body ? postData.body.substring(0, 80) : '';
+                        previewDiv.textContent = bodyPreview + (bodyPreview.length >= 80 ? '...' : '');
+                        
+                        const metaDiv = document.createElement('div');
+                        metaDiv.className = 'profile-post-item-meta';
+                        const timestamp = postData.timestamp ? new Date(postData.timestamp.seconds * 1000).toLocaleString() : 'Unknown';
+                        metaDiv.textContent = `Likes: ${postData.likes || 0} | ${timestamp}`;
+                        
+                        postItem.appendChild(titleDiv);
+                        postItem.appendChild(previewDiv);
+                        postItem.appendChild(metaDiv);
+                        postList.appendChild(postItem);
+                    });
+                    
+                    // Set first item as selected
+                    const firstItem = postList.querySelector('.profile-post-item[data-post-id]');
+                    if (firstItem) {
+                        firstItem.classList.add('selected');
+                    }
+                }
+            } catch (error) {
+                addMessage('ERROR', 'FAILED TO LOAD PROFILE: ' + error.message, false, false, true);
+                closeAllWindows();
+            }
+        }
+
         async function processCommand(rawCmd) {
             const parts = rawCmd.split(' ');
             const cmd = parts[0].toLowerCase();
@@ -1694,110 +1798,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 
             } catch(e) {
                  addMessage('ERROR', 'WHOIS FAILED: ' + e.message, false, false, true);
-            }
-        }
-
-        // --- Profile Viewer Logic ---
-        async function openProfileViewer(email) {
-            if (!ensureAuth()) return;
-            
-            state.mode = 'TUI_PROFILE';
-            state.activeWindow = 'profile-viewer-window';
-            state.menuIndex = 0;
-            
-            const profileWindow = document.getElementById('profile-viewer-window');
-            profileWindow.style.display = 'flex';
-            
-            // Clear previous content
-            document.getElementById('profile-viewer-nickname').textContent = '';
-            document.getElementById('profile-viewer-email').textContent = '';
-            document.getElementById('profile-viewer-bio').textContent = '';
-            document.getElementById('profile-viewer-avatar').textContent = '';
-            document.getElementById('profile-viewer-avatar').classList.remove('ascii-art');
-            document.getElementById('profile-post-list').innerHTML = '';
-            
-            try {
-                // Fetch user profile
-                const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
-                const q = query(usersRef, where("email", "==", email));
-                const snapshot = await getDocs(q);
-                
-                if (snapshot.empty) {
-                    addMessage('ERROR', 'USER NOT FOUND.', false, false, true);
-                    closeAllWindows();
-                    return;
-                }
-                
-                const userData = snapshot.docs[0].data();
-                
-                // Populate header
-                document.getElementById('profile-viewer-nickname').textContent = userData.displayName || email.split('@')[0];
-                document.getElementById('profile-viewer-email').textContent = email;
-                document.getElementById('profile-viewer-bio').textContent = userData.bio || '[ NO BIO ]';
-                
-                if (userData.avatarAscii) {
-                    const avatarDiv = document.getElementById('profile-viewer-avatar');
-                    avatarDiv.textContent = userData.avatarAscii;
-                    avatarDiv.classList.add('ascii-art');
-                } else {
-                    document.getElementById('profile-viewer-avatar').textContent = '[ NO AVATAR ]';
-                }
-                
-                // Fetch posts
-                const postsRef = collection(db, 'artifacts', appId, 'public', 'data', 'posts');
-                const postsQuery = query(
-                    postsRef,
-                    where('authorEmail', '==', email),
-                    orderBy('timestamp', 'desc'),
-                    limit(20)
-                );
-                
-                const postsSnapshot = await getDocs(postsQuery);
-                const postList = document.getElementById('profile-post-list');
-                
-                if (postsSnapshot.empty) {
-                    const noPostsDiv = document.createElement('div');
-                    noPostsDiv.className = 'profile-post-item';
-                    noPostsDiv.textContent = '[ NO POSTS YET ]';
-                    noPostsDiv.style.textAlign = 'center';
-                    noPostsDiv.style.opacity = '0.5';
-                    postList.appendChild(noPostsDiv);
-                } else {
-                    postsSnapshot.forEach((docSnap) => {
-                        const postData = docSnap.data();
-                        const postItem = document.createElement('div');
-                        postItem.className = 'profile-post-item';
-                        postItem.setAttribute('data-post-id', docSnap.id);
-                        
-                        const titleDiv = document.createElement('div');
-                        titleDiv.className = 'profile-post-item-title';
-                        titleDiv.textContent = postData.title || '[ NO TITLE ]';
-                        
-                        const previewDiv = document.createElement('div');
-                        previewDiv.className = 'profile-post-item-preview';
-                        const bodyPreview = postData.body ? postData.body.substring(0, 80) : '';
-                        previewDiv.textContent = bodyPreview + (bodyPreview.length >= 80 ? '...' : '');
-                        
-                        const metaDiv = document.createElement('div');
-                        metaDiv.className = 'profile-post-item-meta';
-                        const timestamp = postData.timestamp ? new Date(postData.timestamp.seconds * 1000).toLocaleString() : 'Unknown';
-                        metaDiv.textContent = `Likes: ${postData.likes || 0} | ${timestamp}`;
-                        
-                        postItem.appendChild(titleDiv);
-                        postItem.appendChild(previewDiv);
-                        postItem.appendChild(metaDiv);
-                        postList.appendChild(postItem);
-                    });
-                    
-                    // Set first item as selected
-                    const firstItem = postList.querySelector('.profile-post-item[data-post-id]');
-                    if (firstItem) {
-                        firstItem.classList.add('selected');
-                    }
-                }
-            } catch (error) {
-                addMessage('ERROR', 'FAILED TO LOAD PROFILE: ' + error.message, false, false, true);
-                closeAllWindows();
             }
         }
 
