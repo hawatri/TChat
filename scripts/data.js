@@ -17,9 +17,10 @@ export const bootText = [
 
 export const commandsList = [
     'help', 'login', 'logout', 'friend', 'friends', 'friends-email', 'chat', 'reqbox', 'radio',
-    'burn', 'theme', 'ascii', 'mute', 'unmute', 
+    'burn', 'theme', 'ascii', 'mute', 'unmute',
     'clear', 'status', 'date', 'exit', 'emoji', 'ping', 'neofetch', 'set-bio', 'whois', 'mentions',
-    'host', 'unhost', 'kick', 'unkick', 'host-list'
+    'host', 'unhost', 'kick', 'unkick', 'host-list',
+    'post', 'profile', 'feed'
 ];
 
 export const subCommands = {

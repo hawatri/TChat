@@ -36,7 +36,7 @@
         </div>
         
         <!-- Profile Editor Overlay -->
-        <div id="profile-editor-overlay">
+        <div id="profile-editor-overlay" class="tui-window">
             <div class="editor-header">:: T-OS PROFILE EDITOR UTILITY ::</div>
             
             <div class="editor-row" id="row-nick">
@@ -61,6 +61,108 @@
             
             <div style="text-align: center; font-size: 0.8rem; margin-top: 10px; color: var(--system-color);">
                 [TAB/ARROW] NAVIGATE | [SPACE/TAP] EDIT
+            </div>
+        </div>
+        
+        <!-- Post Writer Window -->
+        <div id="post-writer-window" class="tui-window tui-fullscreen">
+            <div class="editor-header">:: T-OS POST WRITER ::</div>
+            
+            <div class="post-field">
+                <label class="post-label">TITLE:</label>
+                <input type="text" id="post-title" class="post-input" placeholder="Enter post title...">
+            </div>
+            
+            <div class="post-field">
+                <label class="post-label">ASCII ART:</label>
+                <div id="post-ascii-preview" class="post-ascii-preview">[ CLICK TO UPLOAD IMAGE ]</div>
+            </div>
+            
+            <div class="post-field">
+                <label class="post-label">BODY:</label>
+                <textarea id="post-body" class="post-textarea" placeholder="Enter post body (max 1000 characters)..." maxlength="1000"></textarea>
+                <div class="post-char-count"><span id="post-char-count">0</span>/1000</div>
+            </div>
+            
+            <div class="post-actions">
+                <button id="post-publish-btn" class="post-publish-btn">[ PUBLISH ]</button>
+                <button id="post-cancel-btn" class="post-cancel-btn">[ CANCEL ]</button>
+            </div>
+            
+            <div style="text-align: center; font-size: 0.8rem; margin-top: 10px; color: var(--system-color);">
+                [TAB] Next Field | [ESC] Cancel | [CTRL+ENTER] Publish
+            </div>
+        </div>
+        
+        <!-- Profile Viewer Window -->
+        <div id="profile-viewer-window" class="tui-window">
+            <div class="editor-header">:: T-OS PROFILE VIEWER ::</div>
+            
+            <!-- Header Section -->
+            <div id="profile-viewer-header" class="profile-viewer-header">
+                <div class="profile-viewer-left">
+                    <div id="profile-viewer-avatar" class="profile-viewer-avatar"></div>
+                </div>
+                <div class="profile-viewer-right">
+                    <div class="profile-viewer-info">
+                        <div class="profile-viewer-field">
+                            <span class="profile-viewer-label">NICKNAME:</span>
+                            <span id="profile-viewer-nickname" class="profile-viewer-value"></span>
+                        </div>
+                        <div class="profile-viewer-field">
+                            <span class="profile-viewer-label">EMAIL:</span>
+                            <span id="profile-viewer-email" class="profile-viewer-value"></span>
+                        </div>
+                        <div class="profile-viewer-field">
+                            <span class="profile-viewer-label">BIO:</span>
+                            <div id="profile-viewer-bio" class="profile-viewer-bio"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Posts List Section -->
+            <div class="profile-viewer-posts-header">POSTS:</div>
+            <div id="profile-post-list" class="profile-post-list"></div>
+            
+            <div style="text-align: center; font-size: 0.8rem; margin-top: 10px; color: var(--system-color);">
+                [ARROW UP/DOWN] Navigate | [ENTER] View Post | [ESC] Close
+            </div>
+        </div>
+        
+        <!-- Post Reader Window -->
+        <div id="post-reader-window" class="tui-window tui-fullscreen">
+            <div class="editor-header">:: T-OS POST READER ::</div>
+            
+            <!-- Header Section -->
+            <div class="post-reader-header">
+                <div class="post-reader-title" id="post-reader-title"></div>
+                <div class="post-reader-meta">
+                    <span id="post-reader-author"></span>
+                    <span id="post-reader-date"></span>
+                </div>
+            </div>
+            
+            <!-- Content Section -->
+            <div class="post-reader-content" id="post-reader-content">
+                <!-- ASCII Art and Body will be inserted here -->
+            </div>
+            
+            <!-- Footer -->
+            <div style="text-align: center; font-size: 0.8rem; margin-top: 10px; color: var(--system-color);">
+                [ESC] Close | [L] Like
+            </div>
+        </div>
+
+        <!-- Global Feed Window -->
+        <div id="feed-window" class="tui-window tui-fullscreen">
+            <div class="editor-header">:: T-OS GLOBAL FEED ::</div>
+
+            <div class="profile-viewer-posts-header">LATEST POSTS:</div>
+            <div id="feed-post-list" class="profile-post-list"></div>
+
+            <div style="text-align: center; font-size: 0.8rem; margin-top: 10px; color: var(--system-color);">
+                [ARROW UP/DOWN] Navigate | [ENTER] View Post | [ESC] Close
             </div>
         </div>
     </div>

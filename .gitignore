@@ -1,0 +1,5 @@
+# Claude Code artifacts — keep out of the repo
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+.claudeignore

@@ -1,4 +1,5 @@
 // utils.js
+import { EMOJI_MAP } from './data.js';
 
 // --- Sound System ---
 export const SoundSys = {
@@ -115,4 +116,14 @@ export function convertImageToAscii(url) {
         
         img.onerror = () => reject(new Error("Failed to load image. Check URL."));
     });
+}
+
+// --- Misc helpers ---
+
+export function parseEmojis(text) {
+    return text.replace(/\([^)]+\)/g, (match) => EMOJI_MAP[match] || match);
+}
+
+export function getConversationId(uid1, uid2) {
+    return [uid1, uid2].sort().join('_');
 }
