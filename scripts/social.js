@@ -2,7 +2,7 @@
 
 import {
     collection, doc, query, where, getDocs, getDoc, setDoc,
-    serverTimestamp, limit
+    serverTimestamp, limit, deleteDoc, onSnapshot
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 import { db, appId } from './firebase-config.js';
@@ -312,4 +312,121 @@ export async function checkReqBox() {
             addMessage('ERROR', 'SCAN FAILED: ' + error.message, false, false, true);
         }
     }
+}
+
+// --- unfriend ---------------------------------------------------------------
+export async function unfriend(targetEmail) {
+    if (!ensureAuth()) return;
+    try {
+        const friendsRef = collection(db, 'artifacts', appId, 'users', state.currentUser.uid, 'friends');
+        const q = query(friendsRef, where("email", "==", targetEmail));
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) {
+            addMessage('ERROR', 'FRIEND NOT FOUND.', false, false, true);
+            return;
+        }
+        await deleteDoc(snapshot.docs[0].ref);
+        addMessage('SYSTEM', `UNFRIENDED ${targetEmail}.`, true);
+    } catch (error) {
+        addMessage('ERROR', 'UNFRIEND FAILED: ' + error.message, false, false, true);
+    }
+}
+
+// --- who: list online friends ----------------------------------------------
+export async function listOnlineFriends() {
+    if (!ensureAuth()) return;
+    addMessage('SYSTEM', 'SCANNING FOR ONLINE FRIENDS...', true);
+    try {
+        const friendsRef = collection(db, 'artifacts', appId, 'users', state.currentUser.uid, 'friends');
+        const snapshot = await getDocs(friendsRef);
+        if (snapshot.empty) {
+            addMessage(null, 'No friends to scan.');
+            return;
+        }
+        const checks = snapshot.docs.map(async (d) => {
+            const friend = d.data();
+            const profileRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', friend.uid);
+            const profileSnap = await getDoc(profileRef);
+            const status = profileSnap.exists() ? (profileSnap.data().status || 'offline') : 'offline';
+            return { ...friend, status };
+        });
+        const results = await Promise.all(checks);
+        const online = results.filter(f => f.status === 'online');
+        if (online.length === 0) {
+            addMessage(null, 'NO FRIENDS CURRENTLY ONLINE.');
+            return;
+        }
+        addMessage(null, `ONLINE FRIENDS (${online.length}):`);
+        online.forEach(f => {
+            const name = f.nickname ? `${f.nickname} <${f.email}>` : f.email;
+            const div = document.createElement('div');
+            div.className = 'message-line';
+            div.innerHTML = `<span class="status-dot status-online">●</span> ${name}`;
+            history.appendChild(div);
+        });
+        scrollToBottom();
+    } catch (error) {
+        addMessage('ERROR', error.message, false, false, true);
+    }
+}
+
+// --- block / unblock --------------------------------------------------------
+async function resolveProfileByEmail(email) {
+    const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
+    const snap = await getDocs(query(usersRef, where("email", "==", email)));
+    if (snap.empty) return null;
+    return snap.docs[0].data();
+}
+
+export async function blockUser(targetEmail) {
+    if (!ensureAuth()) return;
+    if (targetEmail === state.currentUser.email) {
+        addMessage('ERROR', 'CANNOT BLOCK YOURSELF.', false, false, true);
+        return;
+    }
+    try {
+        const target = await resolveProfileByEmail(targetEmail);
+        if (!target) { addMessage('ERROR', 'USER NOT FOUND.', false, false, true); return; }
+
+        const ref = doc(db, 'artifacts', appId, 'users', state.currentUser.uid, 'blocked', target.uid);
+        await setDoc(ref, {
+            uid: target.uid,
+            email: target.email,
+            blockedAt: serverTimestamp()
+        });
+        state.blocked.add(target.uid);
+        addMessage('SYSTEM', `BLOCKED ${targetEmail}. (CLIENT-SIDE FILTER)`, true);
+    } catch (error) {
+        addMessage('ERROR', 'BLOCK FAILED: ' + error.message, false, false, true);
+    }
+}
+
+export async function unblockUser(targetEmail) {
+    if (!ensureAuth()) return;
+    try {
+        const target = await resolveProfileByEmail(targetEmail);
+        if (!target) { addMessage('ERROR', 'USER NOT FOUND.', false, false, true); return; }
+
+        const ref = doc(db, 'artifacts', appId, 'users', state.currentUser.uid, 'blocked', target.uid);
+        await deleteDoc(ref);
+        state.blocked.delete(target.uid);
+        addMessage('SYSTEM', `UNBLOCKED ${targetEmail}.`, true);
+    } catch (error) {
+        addMessage('ERROR', 'UNBLOCK FAILED: ' + error.message, false, false, true);
+    }
+}
+
+// Maintain a real-time mirror of the blocked set so chat/radio listeners can filter.
+let _blockedUnsub = null;
+export function setupBlockedListener() {
+    if (!state.currentUser || state.currentUser.isAnonymous) return;
+    if (_blockedUnsub) _blockedUnsub();
+    state.blocked = new Set();
+
+    const ref = collection(db, 'artifacts', appId, 'users', state.currentUser.uid, 'blocked');
+    _blockedUnsub = onSnapshot(ref, (snap) => {
+        const next = new Set();
+        snap.forEach(d => next.add(d.id));
+        state.blocked = next;
+    }, (err) => console.warn('blocked listener error', err));
 }

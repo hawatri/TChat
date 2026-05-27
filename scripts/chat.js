@@ -14,6 +14,36 @@ import { parseEmojis, getConversationId } from './utils.js';
 let _processCommand = null;
 export function registerCommandProcessor(fn) { _processCommand = fn; }
 
+// Mention parsing → notification writes. Reused by chat messages and comments.
+export async function writeMentionNotifications(text, contextLabel = '') {
+    const matches = text.match(/@\((.*?)\)/g);
+    if (!matches || matches.length === 0) return;
+
+    for (const mention of matches) {
+        const targetName = mention.substring(2, mention.length - 1);
+        try {
+            const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
+            const q = query(usersRef, where("displayName", "==", targetName));
+            const snap = await getDocs(q);
+            if (snap.empty) continue;
+
+            const targetUser = snap.docs[0].data();
+            if (targetUser.uid === state.currentUser.uid) continue;
+
+            const notifRef = collection(db, 'artifacts', appId, 'users', targetUser.uid, 'notifications');
+            await addDoc(notifRef, {
+                type: 'mention',
+                from: state.currentUser.uid,
+                fromName: state.currentUser.displayName || state.currentUser.email,
+                preview: (contextLabel ? `[${contextLabel}] ` : '') + text.substring(0, 50),
+                timestamp: serverTimestamp()
+            });
+        } catch (e) {
+            console.warn('mention notification failed', e);
+        }
+    }
+}
+
 export async function startChat(identifier) {
     try {
         let friendData = null;
@@ -64,6 +94,10 @@ export async function startChat(identifier) {
             snap.docChanges().forEach((change) => {
                 if (change.type === "added") {
                     const msg = change.doc.data();
+                    // Drop messages from blocked users (client-side filter).
+                    if (msg.senderId !== state.currentUser.uid && state.blocked && state.blocked.has(msg.senderId)) {
+                        return;
+                    }
                     let senderName = (msg.senderId === state.currentUser.uid)
                         ? 'ME'
                         : (friendData.nickname || friendData.email.split('@')[0]);
@@ -158,30 +192,8 @@ export async function sendMessage(text, isAscii, isBurn) {
     }
 
     try {
-        // Mention parsing → notification writes.
-        const mentionMatches = text.match(/@\((.*?)\)/g);
-        if (mentionMatches && mentionMatches.length > 0) {
-            mentionMatches.forEach(async (mention) => {
-                const targetName = mention.substring(2, mention.length - 1);
-                const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles');
-                const q = query(usersRef, where("displayName", "==", targetName));
-                const snap = await getDocs(q);
-
-                if (!snap.empty) {
-                    const targetUser = snap.docs[0].data();
-                    if (targetUser.uid !== state.currentUser.uid) {
-                        const notifRef = collection(db, 'artifacts', appId, 'users', targetUser.uid, 'notifications');
-                        await addDoc(notifRef, {
-                            type: 'mention',
-                            from: state.currentUser.uid,
-                            fromName: state.currentUser.displayName || state.currentUser.email,
-                            preview: text.substring(0, 50),
-                            timestamp: serverTimestamp()
-                        });
-                    }
-                }
-            });
-        }
+        // Mention parsing → notification writes (shared helper).
+        await writeMentionNotifications(text);
 
         const payload = {
             conversationId: convoId,

@@ -216,6 +216,10 @@ export async function joinRadio(frequency) {
             snapshot.docChanges().forEach((change) => {
                 if (change.type === "added") {
                     const msg = change.doc.data();
+                    // Drop broadcasts from blocked users (client-side filter).
+                    if (msg.senderId !== state.currentUser.uid && state.blocked && state.blocked.has(msg.senderId)) {
+                        return;
+                    }
                     if (msg.senderDisplayName) state.activeRadioParticipants.add(msg.senderDisplayName);
 
                     let senderName = msg.senderDisplayName || 'UNKNOWN';

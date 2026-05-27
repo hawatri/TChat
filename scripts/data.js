@@ -16,18 +16,22 @@ export const bootText = [
 ];
 
 export const commandsList = [
-    'help', 'login', 'logout', 'friend', 'friends', 'friends-email', 'chat', 'reqbox', 'radio',
+    'help', 'login', 'logout', 'friend', 'friends', 'friends-email', 'unfriend',
+    'block', 'unblock', 'who',
+    'chat', 'reqbox', 'radio',
     'burn', 'theme', 'ascii', 'mute', 'unmute',
-    'clear', 'status', 'date', 'exit', 'emoji', 'ping', 'neofetch', 'set-bio', 'whois', 'mentions',
+    'clear', 'status', 'date', 'time', 'uptime', 'motd', 'dnd',
+    'exit', 'emoji', 'ping', 'neofetch', 'set-bio', 'whois', 'mentions',
     'host', 'unhost', 'kick', 'unkick', 'host-list',
-    'post', 'profile', 'feed'
+    'post', 'profile', 'feed', 'top', 'search', 'delete-post', 'comment'
 ];
 
 export const subCommands = {
-    'theme': ['green', 'amber', 'blue', 'white', 'matrix'],
+    'theme': ['green', 'amber', 'blue', 'white', 'matrix', 'red', 'purple', 'c64', 'gameboy', 'random'],
     'status': ['online', 'away', 'busy'],
     'friend': ['add', 'nick'],
-    'host': ['add', 'remove']
+    'host': ['add', 'remove'],
+    'dnd': ['on', 'off']
 };
 
 export const EMOJI_MAP = {

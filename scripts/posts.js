@@ -2,13 +2,14 @@
 
 import {
     collection, addDoc, doc, getDoc, getDocs, query, where, orderBy,
-    limit, serverTimestamp, updateDoc, arrayUnion, arrayRemove
+    limit, serverTimestamp, updateDoc, arrayUnion, arrayRemove, deleteDoc
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 import { db, appId } from './firebase-config.js';
 import { state } from './state.js';
 import { addMessage, fileInput, closeAllWindows } from './ui.js';
 import { ensureAuth } from './auth.js';
+import { loadComments, addComment, renderComment } from './comments.js';
 
 // --- Post Writer ---
 export function openPostWriter() {
@@ -272,11 +273,121 @@ export async function openPostReader(postId) {
             noBodyDiv.style.opacity = '0.5';
             contentDiv.appendChild(noBodyDiv);
         }
+
+        // Show [D] Delete affordance in the reader footer if user is the author.
+        updateReaderFooter(postData);
+
+        // Comments section.
+        await renderCommentsSection(postId, contentDiv);
     } catch (error) {
         addMessage('ERROR', 'FAILED TO LOAD POST: ' + error.message, false, false, true);
         postReaderWindow.style.display = 'none';
         state.mode = 'TUI_PROFILE';
         document.getElementById('profile-viewer-window').style.display = 'flex';
+    }
+}
+
+function updateReaderFooter(postData) {
+    const footer = document.getElementById('post-reader-footer');
+    if (!footer) return;
+    const isAuthor = state.currentUser && postData.authorId === state.currentUser.uid;
+    footer.textContent = isAuthor
+        ? '[ESC] Close | [L] Like | [C] Comment | [D] Delete'
+        : '[ESC] Close | [L] Like | [C] Comment';
+}
+
+async function renderCommentsSection(postId, contentDiv) {
+    let section = document.getElementById('post-reader-comments-section');
+    if (!section) {
+        section = document.createElement('div');
+        section.id = 'post-reader-comments-section';
+        contentDiv.appendChild(section);
+    }
+    section.innerHTML = '';
+
+    const header = document.createElement('div');
+    header.className = 'post-reader-comments-header';
+
+    let comments = [];
+    try { comments = await loadComments(postId); }
+    catch (e) { /* permission errors get surfaced when user tries to add */ }
+
+    header.textContent = `COMMENTS (${comments.length}):`;
+    section.appendChild(header);
+
+    if (comments.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'post-reader-comment';
+        empty.style.opacity = '0.5';
+        empty.textContent = '[ NO COMMENTS YET — PRESS C TO ADD ]';
+        section.appendChild(empty);
+    } else {
+        comments.forEach(c => section.appendChild(renderComment(c)));
+    }
+}
+
+export function openCommentComposer() {
+    if (state.mode !== 'TUI_POST_READ' || !state.currentPostId) return;
+    if (state.commentDraftOpen) return;
+    state.commentDraftOpen = true;
+
+    const contentDiv = document.getElementById('post-reader-content');
+    const composer = document.createElement('div');
+    composer.className = 'post-reader-comment-composer';
+    composer.id = 'post-reader-comment-composer';
+    composer.innerHTML = `
+        <textarea id="comment-draft-text" placeholder="Type your comment. Use @(name) to mention. Ctrl+Enter to send."></textarea>
+        <div class="post-reader-comment-actions">
+            <button class="post-cancel-btn" id="comment-cancel-btn" style="font-size:1rem;padding:6px 14px;min-width:auto;">[ CANCEL ]</button>
+            <button class="post-publish-btn" id="comment-send-btn" style="font-size:1rem;padding:6px 14px;min-width:auto;">[ SEND ]</button>
+        </div>
+    `;
+    contentDiv.appendChild(composer);
+
+    const ta = document.getElementById('comment-draft-text');
+    ta.focus();
+
+    const submit = async () => {
+        const id = await addComment(state.currentPostId, ta.value);
+        if (id) {
+            closeCommentComposer();
+            const cd = document.getElementById('post-reader-content');
+            await renderCommentsSection(state.currentPostId, cd);
+        }
+    };
+
+    document.getElementById('comment-send-btn').onclick = submit;
+    document.getElementById('comment-cancel-btn').onclick = closeCommentComposer;
+    ta.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); }
+        else if (e.key === 'Escape') { e.preventDefault(); closeCommentComposer(); }
+        e.stopPropagation();
+    });
+}
+
+export function closeCommentComposer() {
+    state.commentDraftOpen = false;
+    const c = document.getElementById('post-reader-comment-composer');
+    if (c) c.remove();
+}
+
+// --- Delete post (author only, two-keystroke confirm) ---
+export async function deletePost(postId) {
+    if (!ensureAuth()) return;
+    if (!postId) return;
+    try {
+        const postRef = doc(db, 'artifacts', appId, 'public', 'data', 'posts', postId);
+        const snap = await getDoc(postRef);
+        if (!snap.exists()) { addMessage('ERROR', 'POST ALREADY GONE.', false, false, true); return; }
+        if (snap.data().authorId !== state.currentUser.uid) {
+            addMessage('ERROR', 'PERMISSION DENIED. NOT YOUR POST.', false, false, true);
+            return;
+        }
+        await deleteDoc(postRef);
+        addMessage('SYSTEM', 'POST DELETED.', true);
+        closeAllWindows();
+    } catch (e) {
+        addMessage('ERROR', 'DELETE FAILED: ' + e.message, false, false, true);
     }
 }
 

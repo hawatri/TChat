@@ -12,7 +12,7 @@ import { setupAuthStateListener } from './auth.js';
 import { processCommand } from './commands.js';
 import { processChatInput, sendMessage } from './chat.js';
 import { handleProfileEditorKey } from './profile-editor.js';
-import { openPostReader, toggleLike } from './posts.js';
+import { openPostReader, toggleLike, deletePost, openCommentComposer } from './posts.js';
 import { openFeed } from './feed.js';
 
 // --- Auth bootstrap ---
@@ -102,6 +102,22 @@ tabBtn.addEventListener('click', (e) => {
 document.addEventListener('keydown', (event) => {
     // Escape: close current TUI window, with post reader → profile viewer fallback.
     if (event.key === 'Escape') {
+        // Cancel a pending delete confirmation before anything else.
+        if (state.pendingDelete) {
+            state.pendingDelete = false;
+            addMessage('SYSTEM', 'DELETE CANCELLED.', true);
+            event.preventDefault();
+            return;
+        }
+        // Close the comment composer first if it's open inside the reader.
+        if (state.mode === 'TUI_POST_READ' && state.commentDraftOpen) {
+            event.preventDefault();
+            // Lazy import not needed — module is already loaded.
+            const composer = document.getElementById('post-reader-comment-composer');
+            if (composer) composer.remove();
+            state.commentDraftOpen = false;
+            return;
+        }
         if (state.mode === 'TUI_POST_READ') {
             event.preventDefault();
             document.getElementById('post-reader-window').style.display = 'none';
@@ -127,11 +143,35 @@ document.addEventListener('keydown', (event) => {
         }
     }
 
-    // Like in post reader.
-    if (state.mode === 'TUI_POST_READ' && (event.key === 'l' || event.key === 'L')) {
-        event.preventDefault();
-        toggleLike(state.currentPostId);
-        return;
+    // Like / Comment / Delete in post reader.
+    if (state.mode === 'TUI_POST_READ') {
+        // Skip these single-letter shortcuts when the comment composer textarea is focused.
+        const focused = document.activeElement;
+        const inComposer = focused && focused.id === 'comment-draft-text';
+        if (!inComposer) {
+            if (event.key === 'l' || event.key === 'L') {
+                event.preventDefault();
+                toggleLike(state.currentPostId);
+                return;
+            }
+            if (event.key === 'c' || event.key === 'C') {
+                event.preventDefault();
+                openCommentComposer();
+                return;
+            }
+            if (event.key === 'd' || event.key === 'D') {
+                event.preventDefault();
+                state.pendingDelete = true;
+                addMessage('SYSTEM', 'CONFIRM DELETE? PRESS [Y] TO CONFIRM, [ESC] TO CANCEL.', true);
+                return;
+            }
+            if ((event.key === 'y' || event.key === 'Y') && state.pendingDelete) {
+                event.preventDefault();
+                state.pendingDelete = false;
+                deletePost(state.currentPostId);
+                return;
+            }
+        }
     }
 
     // Profile viewer post-list nav.
@@ -289,4 +329,12 @@ document.addEventListener('click', (e) => {
     if (e.target !== autocompleteMenu && e.target.parentElement !== autocompleteMenu && e.target !== tabBtn) {
         hideAutocomplete();
     }
+});
+
+// --- Mobile: keep the input visible when the soft keyboard opens ---
+input.addEventListener('focus', () => {
+    // Phones bring up the keyboard on focus; scroll the input into view so it isn't hidden.
+    setTimeout(() => {
+        try { input.scrollIntoView({ block: 'end', behavior: 'smooth' }); } catch (e) { /* older browsers */ }
+    }, 100);
 });

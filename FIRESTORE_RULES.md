@@ -37,6 +37,13 @@ service cloud.firestore {
           allow update: if isAuthenticated() && (resource.data.authorId == request.auth.uid || 
                                                  request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy']));
           allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
+
+          // Comments on a post — any authenticated user can read; create with own authorId; only author can edit/delete.
+          match /comments/{commentId} {
+            allow read: if isAuthenticated();
+            allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
+            allow update, delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
+          }
         }
         
         // Messages - readable/writable by authenticated users
@@ -51,6 +58,12 @@ service cloud.firestore {
           allow read: if isAuthenticated();
           allow write: if isAuthenticated();
         }
+
+        // System docs (motd, etc.) — read-only for clients; write via Firebase Console.
+        match /system/{docId} {
+          allow read: if isAuthenticated();
+          allow write: if false;
+        }
       }
       
       // User-specific data
@@ -62,6 +75,11 @@ service cloud.firestore {
         
         // Notifications - readable/writable by owner
         match /notifications/{notificationId} {
+          allow read, write: if isOwner(userId);
+        }
+
+        // Blocked users — owner-only.
+        match /blocked/{blockedUid} {
           allow read, write: if isOwner(userId);
         }
       }
@@ -90,6 +108,20 @@ service cloud.firestore {
    - Users can read all messages (for chat functionality)
    - Users can only create messages with their own `senderId`
    - Users can only update/delete their own messages
+
+6. **Comments** (`posts/{id}/comments`):
+   - Any authenticated user can read all comments.
+   - Users can only create comments with their own `authorId`.
+   - Only the comment's author can edit or delete it.
+
+7. **Blocked users** (`users/{uid}/blocked`):
+   - Owner-only. Each blocked user is one document with `{ uid, blockedAt }`.
+   - **Important**: blocking is currently enforced **client-side only** — the blocker's app filters out messages from blocked users in their own UI, but the blocked user can still write messages and see public posts. To enforce server-side, add a rule on `messages` checking the receiver's blocked subcollection (more complex; not included by default).
+
+8. **System docs** (`public/data/system`):
+   - Read-only for clients. Write `motd` via the Firebase Console:
+     - Doc: `artifacts/tchat-terminal/public/data/system/motd`
+     - Field: `text` (string)
 
 ## Testing the Rules
 

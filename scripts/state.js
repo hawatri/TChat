@@ -43,6 +43,15 @@ export const state = {
 
     // Post reader — needed for likes
     currentPostId: null,
+    pendingDelete: false,      // armed when user pressed [D] in reader, expects [Y]
+    commentDraftOpen: false,   // composer visible
+
+    // DND + MOTD session flags
+    dnd: false,
+    motdShown: false,
+
+    // Blocked uid set — populated on login by social.js loadBlockedSet()
+    blocked: new Set(),
 
     // Autocomplete
     autocompleteOptions: [],

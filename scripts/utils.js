@@ -40,12 +40,20 @@ export const SoundSys = {
 
 // --- Themes ---
 const Themes = {
-    green: { main: '#33ff00', system: '#ffaa00', chat: '#00ccff', error: '#ff3333', radio: '#ff33cc' },
-    amber: { main: '#ffb000', system: '#ffcc00', chat: '#ffb000', error: '#ff5500', radio: '#ff8800' },
-    blue:  { main: '#0088ff', system: '#00aaff', chat: '#00ffff', error: '#ff3333', radio: '#cc00ff' },
-    white: { main: '#e0e0e0', system: '#ffffff', chat: '#cccccc', error: '#ff3333', radio: '#ff00ff' },
-    matrix: { main: '#00ff41', system: '#008f11', chat: '#003b00', error: '#ff3333', radio: '#00ff00' }
+    green:   { main: '#33ff00', system: '#ffaa00', chat: '#00ccff', error: '#ff3333', radio: '#ff33cc' },
+    amber:   { main: '#ffb000', system: '#ffcc00', chat: '#ffb000', error: '#ff5500', radio: '#ff8800' },
+    blue:    { main: '#0088ff', system: '#00aaff', chat: '#00ffff', error: '#ff3333', radio: '#cc00ff' },
+    white:   { main: '#e0e0e0', system: '#ffffff', chat: '#cccccc', error: '#ff3333', radio: '#ff00ff' },
+    matrix:  { main: '#00ff41', system: '#008f11', chat: '#003b00', error: '#ff3333', radio: '#00ff00' },
+    red:     { main: '#ff3333', system: '#ff8800', chat: '#ff66aa', error: '#ffff00', radio: '#ff00ff' },
+    purple:  { main: '#cc66ff', system: '#ff99ff', chat: '#9966ff', error: '#ff3333', radio: '#ff33cc' },
+    c64:     { main: '#a0a0ff', system: '#7878d8', chat: '#ffffff', error: '#ff5555', radio: '#ffff55' },
+    gameboy: { main: '#9bbc0f', system: '#8bac0f', chat: '#306230', error: '#0f380f', radio: '#306230' }
 };
+
+export function getThemeNames() {
+    return Object.keys(Themes);
+}
 
 export function applyTheme(themeName) {
     const theme = Themes[themeName];

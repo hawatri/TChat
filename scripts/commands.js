@@ -2,16 +2,17 @@
 
 import { state } from './state.js';
 import { addMessage, history, fileInput, updatePrompt } from './ui.js';
-import { applyTheme, fetchAscii, SoundSys } from './utils.js';
+import { applyTheme, fetchAscii, SoundSys, getThemeNames } from './utils.js';
 import {
-    handleLogin, handleLogout, ensureAuth, updateStatus
+    handleLogin, handleLogout, ensureAuth, updateStatus, showMotdOnce
 } from './auth.js';
 import { openProfileEditor } from './profile-editor.js';
-import { openPostWriter, openProfileViewer } from './posts.js';
+import { openPostWriter, openProfileViewer, deletePost, openCommentComposer } from './posts.js';
 import { openFeed } from './feed.js';
 import {
     addFriend, setNickname, listFriends, listFriendsEmails, checkReqBox,
-    pingUser, runWhois, showRecentMentions, runNeofetch
+    pingUser, runWhois, showRecentMentions, runNeofetch,
+    unfriend, blockUser, unblockUser, listOnlineFriends
 } from './social.js';
 import { startChat, registerCommandProcessor } from './chat.js';
 import {
@@ -27,37 +28,57 @@ export async function processCommand(rawCmd) {
     switch (cmd) {
         case 'help':
             addMessage('SYSTEM', 'COMMANDS:', true);
+            addMessage(null, '--- AUTH & PROFILE ---');
             addMessage(null, '  login            - Sign in with Google');
             addMessage(null, '  logout           - Sign out');
             addMessage(null, '  set-bio          - Open Profile Editor');
             addMessage(null, '  whois [email]    - View User Profile');
-            addMessage(null, '  mentions         - Check tags/mentions');
-            addMessage(null, '  friend add [email]     - Add friend');
-            addMessage(null, '  friend nick [email] [nick] - Set nickname');
-            addMessage(null, '  friends          - List friends');
-            addMessage(null, '  friends-email    - List emails & nicknames');
-            addMessage(null, '  reqbox           - Check for new messages');
             addMessage(null, '  status [mode]    - online/away/busy');
-            addMessage(null, '  chat [name/email] - Start chat');
-            addMessage(null, '  radio [freq]     - Join broadcast freq');
-            addMessage(null, '  host             - Claim Radio Host (*)');
-            addMessage(null, '  host [name]      - Add Admin (Host only)');
-            addMessage(null, '  unhost [name]    - Remove Admin (Host only)');
-            addMessage(null, '  kick [name]      - Ban User (Admin only)');
-            addMessage(null, '  unkick [name]    - Unban User (Admin only)');
-            addMessage(null, '  host-list        - Show Admins');
-            addMessage(null, '  ping [email]     - Check user availability');
-            addMessage(null, '  neofetch         - Display system info');
-            addMessage(null, '  burn [msg]       - Send self-destruct msg');
-            addMessage(null, '  theme [color]    - Set color');
-            addMessage(null, '  ascii [url]      - Render ASCII (Image or Text)');
-            addMessage(null, '                     Type "ascii" with no url to upload.');
-            addMessage(null, '  emoji            - List emoji codes');
-            addMessage(null, '  mute / unmute    - Toggle sounds');
-            addMessage(null, '  clear            - Clear screen');
-            addMessage(null, '  post             - Write a new post');
-            addMessage(null, '  profile          - View your profile');
-            addMessage(null, '  feed             - Browse latest posts globally');
+            addMessage(null, '');
+            addMessage(null, '--- SOCIAL ---');
+            addMessage(null, '  friend add [email]         - Add friend');
+            addMessage(null, '  friend nick [email] [nick] - Set nickname');
+            addMessage(null, '  unfriend [email]           - Remove friend');
+            addMessage(null, '  friends / friends-email    - List friends');
+            addMessage(null, '  who                        - List online friends');
+            addMessage(null, '  block [email] / unblock    - Mute a user (client-side)');
+            addMessage(null, '  reqbox                     - Check incoming chats');
+            addMessage(null, '  mentions                   - Recent @-mentions');
+            addMessage(null, '  ping [email]               - Probe a user');
+            addMessage(null, '');
+            addMessage(null, '--- CHAT & RADIO ---');
+            addMessage(null, '  chat [name/email] - Start 1:1 chat');
+            addMessage(null, '  radio [freq]      - Tune to broadcast freq');
+            addMessage(null, '  burn [msg]        - Send self-destruct (10s)');
+            addMessage(null, '  host              - Claim Radio Host (*)');
+            addMessage(null, '  host [name]       - Promote (Admin only)');
+            addMessage(null, '  unhost [name]     - Demote (Admin only)');
+            addMessage(null, '  kick [name]       - Ban (Admin only)');
+            addMessage(null, '  unkick [name]     - Unban (Admin only)');
+            addMessage(null, '  host-list         - Show admins');
+            addMessage(null, '  exit              - Leave chat / radio');
+            addMessage(null, '');
+            addMessage(null, '--- POSTS & FEED ---');
+            addMessage(null, '  post              - Write a new post');
+            addMessage(null, '  profile           - View your profile + posts');
+            addMessage(null, '  feed              - Latest posts globally');
+            addMessage(null, '  top               - Most-liked posts');
+            addMessage(null, '  search [query]    - Search posts');
+            addMessage(null, '  delete-post       - Delete current post (in reader)');
+            addMessage(null, '  comment           - Open comment composer (in reader)');
+            addMessage(null, '');
+            addMessage(null, '--- SYSTEM ---');
+            addMessage(null, '  date / time       - Current date / clock');
+            addMessage(null, '  uptime            - Session uptime');
+            addMessage(null, '  motd              - Message of the day');
+            addMessage(null, '  dnd [on|off]      - Do-not-disturb mode');
+            addMessage(null, '  neofetch          - System info');
+            addMessage(null, '  ascii [url]       - Render ASCII (or upload)');
+            addMessage(null, '  emoji             - List emoji codes');
+            addMessage(null, '  theme [color]     - Set palette (random for surprise)');
+            addMessage(null, '  mute / unmute     - Toggle sounds');
+            addMessage(null, '  clear             - Clear screen');
+            addMessage(null, '  help              - This screen');
             break;
 
         case 'clear':
@@ -87,7 +108,91 @@ export async function processCommand(rawCmd) {
 
         case 'feed':
             if (!ensureAuth()) return;
-            await openFeed();
+            await openFeed({ mode: 'recent' });
+            break;
+
+        case 'top':
+            if (!ensureAuth()) return;
+            await openFeed({ mode: 'top' });
+            break;
+
+        case 'search': {
+            if (!ensureAuth()) return;
+            const q = args.join(' ').trim();
+            if (!q) { addMessage('SYSTEM', 'USAGE: search [query]', true); break; }
+            await openFeed({ mode: 'search', query: q });
+            break;
+        }
+
+        case 'delete-post':
+            if (!ensureAuth()) return;
+            if (state.mode === 'TUI_POST_READ' && state.currentPostId) {
+                state.pendingDelete = true;
+                addMessage('SYSTEM', 'CONFIRM DELETE? PRESS [Y] IN POST READER, OR [ESC] TO CANCEL.', true);
+            } else {
+                addMessage('SYSTEM', 'OPEN A POST FIRST, THEN PRESS [D] OR RUN delete-post.', true);
+            }
+            break;
+
+        case 'comment':
+            if (!ensureAuth()) return;
+            if (state.mode === 'TUI_POST_READ') {
+                openCommentComposer();
+            } else {
+                addMessage('SYSTEM', 'OPEN A POST FIRST, THEN PRESS [C] OR RUN comment.', true);
+            }
+            break;
+
+        case 'unfriend':
+            if (!ensureAuth()) return;
+            if (args[0]) await unfriend(args[0]);
+            else addMessage('SYSTEM', 'USAGE: unfriend [email]', true);
+            break;
+
+        case 'block':
+            if (!ensureAuth()) return;
+            if (args[0]) await blockUser(args[0]);
+            else addMessage('SYSTEM', 'USAGE: block [email]', true);
+            break;
+
+        case 'unblock':
+            if (!ensureAuth()) return;
+            if (args[0]) await unblockUser(args[0]);
+            else addMessage('SYSTEM', 'USAGE: unblock [email]', true);
+            break;
+
+        case 'who':
+            await listOnlineFriends();
+            break;
+
+        case 'time': {
+            const d = new Date();
+            const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'local';
+            addMessage('SYSTEM', `${d.toLocaleTimeString()} (${tz})`, true);
+            break;
+        }
+
+        case 'uptime': {
+            const ms = performance.now();
+            const m = Math.floor(ms / 60000);
+            const s = Math.floor((ms % 60000) / 1000);
+            addMessage('SYSTEM', `UPTIME: ${m}m ${s}s`, true);
+            break;
+        }
+
+        case 'motd':
+            state.motdShown = false; // allow re-display
+            await showMotdOnce();
+            break;
+
+        case 'dnd':
+            if (args[0] === 'off') {
+                state.dnd = false;
+                addMessage('SYSTEM', 'DND OFF. NOTIFICATIONS RESTORED.', true);
+            } else {
+                state.dnd = true;
+                addMessage('SYSTEM', 'DND ON. MENTIONS WILL BE SILENT.', true);
+            }
             break;
 
         case 'mentions':
@@ -146,14 +251,22 @@ export async function processCommand(rawCmd) {
             }
             break;
 
-        case 'theme':
-            if (args[0] && applyTheme(args[0])) {
-                state.theme = args[0];
-                addMessage('SYSTEM', `THEME SET TO ${args[0].toUpperCase()}`, true);
+        case 'theme': {
+            const arg = args[0];
+            if (arg === 'random') {
+                const names = getThemeNames();
+                const pick = names[Math.floor(Math.random() * names.length)];
+                applyTheme(pick);
+                state.theme = pick;
+                addMessage('SYSTEM', `RANDOM THEME: ${pick.toUpperCase()}`, true);
+            } else if (arg && applyTheme(arg)) {
+                state.theme = arg;
+                addMessage('SYSTEM', `THEME SET TO ${arg.toUpperCase()}`, true);
             } else {
-                addMessage('SYSTEM', 'USAGE: theme [green|amber|blue|white|matrix]', true);
+                addMessage('SYSTEM', `USAGE: theme [${getThemeNames().join('|')}|random]`, true);
             }
             break;
+        }
 
         case 'login':
             if (state.currentUser && !state.currentUser.isAnonymous) {

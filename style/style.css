@@ -358,7 +358,7 @@
             border: 1px solid var(--terminal-main);
             color: var(--terminal-main);
             font-family: 'VT323', monospace;
-            font-size: 1.3rem;
+            font-size: 16px; /* >= 16px prevents iOS focus auto-zoom */
             padding: 8px;
             outline: none;
             text-shadow: 0 0 4px var(--terminal-glow);
@@ -373,7 +373,7 @@
             border: 1px solid var(--terminal-main);
             color: var(--terminal-main);
             font-family: 'VT323', monospace;
-            font-size: 1.2rem;
+            font-size: 16px; /* >= 16px prevents iOS focus auto-zoom */
             padding: 8px;
             outline: none;
             resize: vertical;
@@ -781,4 +781,102 @@
 
         .post-reader-content.like-flash {
             animation: like-flash 0.3s ease;
+        }
+
+        /* ---------- Comments (post reader) ---------- */
+        .post-reader-comments-header {
+            margin-top: 20px;
+            color: var(--system-color);
+            border-top: 1px dashed var(--terminal-main);
+            padding-top: 10px;
+            font-size: 1.1rem;
+        }
+        .post-reader-comment {
+            border-bottom: 1px dashed rgba(51, 255, 0, 0.25);
+            padding: 6px 0;
+            font-size: 1rem;
+            line-height: 1.4;
+        }
+        .post-reader-comment-author {
+            color: var(--chat-color);
+            margin-right: 6px;
+        }
+        .post-reader-comment-time {
+            color: var(--system-color);
+            opacity: 0.7;
+            font-size: 0.8rem;
+            margin-left: 6px;
+        }
+        .post-reader-comment-composer {
+            margin-top: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .post-reader-comment-composer textarea {
+            background-color: var(--terminal-bg);
+            border: 1px solid var(--terminal-main);
+            color: var(--terminal-main);
+            font-family: 'VT323', monospace;
+            font-size: 16px;
+            padding: 8px;
+            outline: none;
+            resize: vertical;
+            min-height: 60px;
+            text-shadow: 0 0 4px var(--terminal-glow);
+        }
+        .post-reader-comment-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        /* ---------- Mobile (≤ 480px) ---------- */
+        @media (max-width: 480px) {
+            .bezel-overlay { border-width: 4px; border-radius: 6px; }
+            .terminal-content { padding: 10px; padding-bottom: 14px; font-size: 1rem; }
+
+            .tui-window {
+                width: 95%;
+                max-height: 92vh;
+                overflow-y: auto;
+                padding: 8px;
+            }
+            .tui-fullscreen {
+                width: 100%;
+                height: 100%;
+                top: 0;
+                left: 0;
+                transform: none;
+                border-radius: 0;
+            }
+
+            /* Profile editor — bigger tap targets, single column */
+            .editor-row { padding: 12px 10px; font-size: 1.1rem; flex-wrap: wrap; }
+            .field-label { width: auto; margin-right: 8px; }
+            .editor-actions { flex-direction: column; gap: 8px; }
+            .action-btn { min-height: 44px; display: flex; align-items: center; justify-content: center; }
+
+            /* Profile viewer — stacked layout, smaller avatar */
+            .profile-viewer-header { flex-direction: column; gap: 10px; }
+            .profile-viewer-avatar { width: 100px; min-height: 100px; font-size: 0.45rem; }
+            .profile-viewer-left, .profile-viewer-right { width: 100%; }
+
+            /* Post writer — taller body, stacked actions */
+            .post-textarea { min-height: 120px; }
+            .post-actions { flex-direction: column; gap: 8px; }
+            .post-publish-btn, .post-cancel-btn { min-width: 100%; min-height: 44px; padding: 10px 12px; font-size: 1.1rem; }
+
+            /* Autocomplete — fit narrow viewport */
+            #autocomplete-menu { min-width: auto; max-width: calc(100vw - 30px); max-height: 160px; }
+
+            /* Slimmer scrollbar on phones */
+            #chat-history::-webkit-scrollbar,
+            .profile-post-list::-webkit-scrollbar,
+            .post-ascii-preview::-webkit-scrollbar,
+            .post-reader-window::-webkit-scrollbar { width: 6px; }
+
+            /* Post reader title gets a touch smaller */
+            .post-reader-title { font-size: 1.4rem; }
+            .post-reader-content { font-size: 1rem; }
         }

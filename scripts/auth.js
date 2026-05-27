@@ -51,11 +51,29 @@ export function setupNotificationListener(uid) {
             if (change.type === "added") {
                 const notif = change.doc.data();
                 if (notif.timestamp && (Date.now() - notif.timestamp.toMillis()) < 30000) {
-                    triggerNotificationEffect(notif);
+                    if (state.dnd) {
+                        // DND: silent record only.
+                        addMessage('SYSTEM', `[DND] mention from ${notif.fromName} muted.`, true);
+                    } else {
+                        triggerNotificationEffect(notif);
+                    }
                 }
             }
         });
     });
+}
+
+// MOTD — read once per session after login.
+export async function showMotdOnce() {
+    if (state.motdShown) return;
+    state.motdShown = true;
+    try {
+        const motdRef = doc(db, 'artifacts', appId, 'public', 'data', 'system', 'motd');
+        const snap = await getDoc(motdRef);
+        if (snap.exists() && snap.data().text) {
+            addMessage('MOTD', snap.data().text, true);
+        }
+    } catch (e) { /* silent — motd is optional */ }
 }
 
 export async function handleLogin() {
@@ -99,6 +117,12 @@ export function setupAuthStateListener() {
                 await updateStatus('online');
                 setupNotificationListener(user.uid);
 
+                // Lazy import to avoid circular deps with social/commands.
+                try {
+                    const { setupBlockedListener } = await import('./social.js');
+                    setupBlockedListener();
+                } catch (e) { /* social load failure shouldn't break login */ }
+
                 try {
                     const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', user.uid);
                     const snap = await getDoc(userRef);
@@ -114,11 +138,15 @@ export function setupAuthStateListener() {
                     }
                     await setDoc(userRef, baseData, { merge: true });
                 } catch (e) { /* non-fatal */ }
+
+                // Show motd once per session, after login completes.
+                if (!state.booting) showMotdOnce();
             }
         } else {
             updatePrompt('offline');
             initGuestAuth();
             if (state.notificationUnsubscribe) state.notificationUnsubscribe();
+            state.blocked = new Set();
         }
     });
 }
